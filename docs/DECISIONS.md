@@ -92,3 +92,9 @@ Aspecto visual de la ventana y comportamiento real de la bandeja en GNOME (requi
 - Instalación del `.deb` en un sistema limpio; AppImage con `--toggle`.
 - Notificaciones: se invoca `notify-send`, no se comprobó visualmente que aparezcan.
 - Carrera: si `--toggle` se lanza antes de que la 1.ª instancia haya registrado su D-Bus, puede iniciarse una 2.ª instancia (un intento anterior sin sleep suficiente falló sin causa identificada).
+
+# Fase 4 — Calidad y entrega (2026-11-23)
+- Revisión de privacidad de artefactos: el primer binario incrustaba rutas locales (usuario incluido). Se añadió `strip`, `lto=thin` y `--remap-path-prefix` en `build.sh`; el `.deb` final no contiene usuario/correo. Pendiente menor: ruta de build de whisper.cpp.
+- `build.sh` genera `SHA256SUMS` junto a los paquetes.
+- Informe de aceptación: `docs/ACCEPTANCE.md` (varios criterios parciales por falta de Wayland/VM limpia/audio en español). Sin LICENSE todavía: decisión del propietario.
+- Release 0.1.0 como **pre-release** de prueba; sin datos personales ni secretos.
