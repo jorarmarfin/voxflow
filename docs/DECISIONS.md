@@ -37,3 +37,18 @@ Compila y transcribe con éxito. Mantiene la interfaz `SpeechEngine` sustituible
 - Captura de audio: elegir crate (cpal/ALSA vs PipeWire) en Fase 2; `libasound2-dev` falta en este equipo.
 - Wayland: probar en una sesión Wayland real antes de afirmar nada (Fase 3).
 - Latencia en CPU con modelos mayores que `base`: medir antes de fijar objetivos.
+
+# Fase 1 — Esqueleto (2026-11-23)
+
+- **Stack:** Tauri 2.x + React 19 + Vite 7 + TypeScript; paquetes con pnpm. Sin CI/CD por decisión del usuario: solo `run.sh` y `build.sh`.
+- **Sin simulaciones:** `ENGINE_AVAILABLE=false` en `src-tauri/src/lib.rs`. Iniciar grabación devuelve un error explícito y la UI deshabilita el botón. Se activa en la Fase 2.
+- **Estados:** `RecState` (IDLE/RECORDING/TRANSCRIBING/READY) en `state.rs`, con tests (sin grabaciones simultáneas, cancelar vuelve a IDLE).
+- **Ajustes:** `settings.rs`, JSON con escritura atómica, validación de modelo/idioma (no se aceptan rutas arbitrarias) y fallback a defaults si el archivo está corrupto.
+- **Seguridad:** capabilities mínimas (`core:default`), CSP restrictiva, sin comandos shell expuestos al frontend, sin fuentes web externas (Montserrat/Inter solo si están instaladas; fallback a la fuente del sistema).
+- **Tray:** Abrir / Iniciar-Detener / Salir. Inserción de texto: botón "Insertar" deshabilitado hasta la Fase 3.
+- **Icono:** generado desde `assets/brand/logo.png` (con fondo blanco; pendiente versión transparente para la bandeja).
+
+## Verificado
+`./build.sh --check` OK (clippy `-D warnings`, 7 tests Rust, 1 test Vitest). `.deb` (3.5 MiB) y `.AppImage` (81 MiB) generados. El binario release arranca y se mantiene vivo 10 s sin errores en stderr.
+## No verificado
+Aspecto visual de la ventana y comportamiento real de la bandeja en GNOME (requiere la extensión AppIndicator); instalación del `.deb` y ejecución del AppImage en un sistema limpio; Wayland.

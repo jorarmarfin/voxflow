@@ -1,0 +1,38 @@
+:root {
+  --indigo: #1a0f6b; --cobalt: #2e3be6; --cyan: #00d4ff; --teal: #00e6c3;
+  --bg: #f5f6fd; --card: #fff; --text: #1b1b3a; --muted: #5d5f80; --border: #dcdff5;
+  --grad: linear-gradient(90deg, var(--indigo), var(--cobalt) 45%, var(--cyan) 80%, var(--teal));
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--text); background: var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0d0a2b; --card: #17134a; --text: #eef0ff; --muted: #a9acd6; --border: #2c2870; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.app { max-width: 560px; margin: 0 auto; padding: 16px; }
+.topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.topbar h1 { font-family: Montserrat, Inter, system-ui, sans-serif; font-size: 1.3rem; margin: 0; flex: 1;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.logo { width: 36px; height: 36px; border-radius: 8px; }
+.tab { background: none; border: 0; padding: 6px 10px; border-radius: 8px; color: var(--muted); cursor: pointer; font: inherit; }
+.tab.active { background: var(--card); color: var(--text); font-weight: 600; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin: 12px 0; }
+.status { display: flex; align-items: center; gap: 10px; }
+.status .muted { margin-left: auto; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: var(--teal); }
+.dot.recording { background: #e5484d; box-shadow: 0 0 0 4px #e5484d33; }
+.dot.transcribing { background: var(--cobalt); }
+.muted { color: var(--muted); } .small { font-size: .85rem; }
+.cta { display: block; width: 100%; padding: 14px; margin: 8px 0; border: 0; border-radius: 999px; color: #fff;
+  font: 600 1rem Montserrat, Inter, sans-serif; background: linear-gradient(90deg, var(--cobalt), var(--teal)); cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.secondary, .actions button { padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; font: inherit; }
+.actions { display: flex; gap: 8px; margin-top: 10px; }
+label { display: block; font-weight: 600; margin: 10px 0 4px; }
+.check { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+select, textarea { width: 100%; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+.notice { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; border-radius: 12px; background: #fff4d6; color: #5a4300; }
+.notice button { background: none; border: 0; font-size: 1.2rem; cursor: pointer; color: inherit; }
+h2 { font-size: 1rem; margin: 8px 0 4px; }

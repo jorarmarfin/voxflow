@@ -6,3 +6,5 @@ models/*.bin
 !tests/fixtures/*.wav
 .env
 tests/fixtures/mic-*.wav
+src-tauri/target/
+src-tauri/gen/
