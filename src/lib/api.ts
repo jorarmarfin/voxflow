@@ -12,11 +12,45 @@ export interface Settings {
   start_minimized: boolean;
 }
 
+export interface Status {
+  audio_ok: boolean;
+  model_installed: boolean;
+}
+export interface Device {
+  id: string;
+  label: string;
+}
+export interface ModelStatus {
+  id: string;
+  installed: boolean;
+  size_bytes: number;
+}
+export interface Progress {
+  downloaded: number;
+  total: number;
+}
+export interface DownloadDone {
+  ok: boolean;
+  error: string | null;
+}
+
 export const api = {
   getState: () => invoke<RecState>("get_state"),
-  engineAvailable: () => invoke<boolean>("engine_available"),
+  getStatus: () => invoke<Status>("get_status"),
+  listDevices: () => invoke<Device[]>("list_devices"),
   toggleRecording: () => invoke<RecState>("toggle_recording"),
   cancel: () => invoke<RecState>("cancel"),
+  dismiss: () => invoke<RecState>("dismiss"),
+  modelStatus: () => invoke<ModelStatus[]>("model_status"),
+  downloadModel: (id: string) => invoke<void>("download_model", { id }),
+  cancelDownload: () => invoke<void>("cancel_download"),
+  deleteModel: (id: string) => invoke<void>("delete_model", { id }),
+  onTranscript: (cb: (t: string) => void): Promise<UnlistenFn> =>
+    listen<string>("transcript", (e) => cb(e.payload)),
+  onProgress: (cb: (p: Progress) => void): Promise<UnlistenFn> =>
+    listen<Progress>("download-progress", (e) => cb(e.payload)),
+  onDownloadDone: (cb: (d: DownloadDone) => void): Promise<UnlistenFn> =>
+    listen<DownloadDone>("download-done", (e) => cb(e.payload)),
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),
   onState: (cb: (s: RecState) => void): Promise<UnlistenFn> =>

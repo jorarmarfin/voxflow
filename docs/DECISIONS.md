@@ -52,3 +52,23 @@ Compila y transcribe con éxito. Mantiene la interfaz `SpeechEngine` sustituible
 `./build.sh --check` OK (clippy `-D warnings`, 7 tests Rust, 1 test Vitest). `.deb` (3.5 MiB) y `.AppImage` (81 MiB) generados. El binario release arranca y se mantiene vivo 10 s sin errores en stderr.
 ## No verificado
 Aspecto visual de la ventana y comportamiento real de la bandeja en GNOME (requiere la extensión AppIndicator); instalación del `.deb` y ejecución del AppImage en un sistema limpio; Wayland.
+
+# Fase 2 — Voz (2026-11-23)
+
+- **AudioCapture:** `pw-record` (PipeWire) como proceso hijo con argumentos fijos, PCM 16 kHz mono s16 por stdout, solo en memoria (tope 5 min). Se eligió esto porque `libasound2-dev` no estaba instalado y requería sudo; evita dependencias de compilación y cumple 16 kHz nativo. Micrófonos con `pactl list short sources` (`LC_ALL=C`; el JSON de pactl falla con locale no ASCII), sin monitores. IDs validados (`[A-Za-z0-9._-:]`, sin `-` inicial). Limitación: requiere PipeWire/Pulse; no hay captura ALSA pura.
+- **SpeechEngine:** trait + `WhisperEngine` (whisper-rs). Contexto cacheado por modelo; threads = min(CPU, 8); audio < 0,3 s se rechaza; < 1 s se rellena con silencio.
+- **Bug upstream:** `set_abort_callback_safe` de whisper-rs 0.16.0 interpreta mal su puntero (error -6 espurio). Se usa la API cruda con trampolín propio sobre un `AtomicBool`. La cancelación además descarta el resultado por `generation`.
+- **Privacidad de logs:** `install_logging_hooks()` (feature `log_backend`) desvía la salida de whisper.cpp (que imprime tokens) al crate `log`, sin logger. Verificado: stderr vacío durante la transcripción.
+- **ModelManager:** descarga con `ureq` a `.part`, SHA-256 en streaming, rename solo si coincide; progreso, cancelación y borrado. Estado "instalado" = archivo presente (solo se crea tras verificar). Solo URL fija de Hugging Face. `VOXFLOW_MODELS_DIR` permite usar otra carpeta (la usa `run.sh`).
+- **Estados:** READY → nuevo dictado permitido. Cancelar libera el micrófono (mata el proceso) y vuelve a IDLE. Tooltip de bandeja indica GRABANDO.
+
+## Verificado
+- `./build.sh` completo (clippy -D warnings, 14 tests Rust, 1 Vitest, `.deb` y `.AppImage`).
+- Test ignorado con hardware: captura real de 2 s del micrófono por defecto (~1,9 s de muestras recibidas).
+- Test ignorado con modelo: `jfk.wav` transcrito correctamente por el `WhisperEngine`.
+- El binario release arranca sin errores.
+## No verificado
+- **Flujo completo con la UI** (clic → habla → texto) y habla real en **español peruano**/tecnicismos: requiere una prueba manual del usuario.
+- Descarga desde la app (solo se probó `fetch-model.sh`; el código de `models.rs` no se ejercitó contra la red) y fallo de red/espacio.
+- Desconexión del micrófono durante la grabación (se detecta solo si no llega audio).
+- Rendimiento: solo 1 clip (RTF ~0,19 con `base`, CPU); sin objetivos definidos.

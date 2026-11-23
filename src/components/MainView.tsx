@@ -1,42 +1,67 @@
-import { useState } from "react";
-import { api, errMsg, STATE_LABEL, type RecState } from "../lib/api";
+import { useEffect, useState } from "react";
+import { api, errMsg, STATE_LABEL, type RecState, type Settings, type Status } from "../lib/api";
 
 interface Props {
   state: RecState;
-  engine: boolean;
+  status: Status;
+  settings: Settings | null;
+  transcript: { text: string; n: number } | null;
   onNotice: (m: string | null) => void;
+  onGoSettings: () => void;
 }
 
-export default function MainView({ state, engine, onNotice }: Props) {
+export default function MainView({ state, status, settings, transcript, onNotice, onGoSettings }: Props) {
   const [text, setText] = useState("");
   const recording = state === "RECORDING";
   const busy = state === "TRANSCRIBING";
 
-  const toggle = () => api.toggleRecording().catch((e) => onNotice(errMsg(e)));
-  const copy = async () => {
+  const copy = async (value: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(value);
       onNotice("Copiado al portapapeles. Pega con Ctrl+V.");
     } catch (e) {
       onNotice(`No se pudo copiar: ${errMsg(e)}`);
     }
   };
 
+  // Nueva transcripción: mostrarla; en modo "clipboard" se copia directo.
+  useEffect(() => {
+    if (!transcript) return;
+    setText(transcript.text);
+    if (settings?.output_mode === "clipboard") void copy(transcript.text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcript]);
+
+  const toggle = () => api.toggleRecording().catch((e) => onNotice(errMsg(e)));
+  const discard = () => {
+    setText("");
+    void api.dismiss();
+  };
+
+  const blocker = !status.audio_ok
+    ? "No se encontró pw-record (instala pipewire-bin) para capturar audio."
+    : !status.model_installed
+      ? "Falta el modelo de voz."
+      : null;
+
   return (
     <main>
       <section className="card status" aria-live="polite">
         <span className={`dot ${state.toLowerCase()}`} aria-hidden="true" />
         <strong>{STATE_LABEL[state]}</strong>
-        <span className="muted">{recording ? "Micrófono activo" : "Micrófono inactivo"}</span>
+        <span className={recording ? "mic-on" : "muted"}>{recording ? "● Micrófono ACTIVO" : "Micrófono inactivo"}</span>
       </section>
 
-      {!engine && (
+      {blocker && (
         <p className="muted small">
-          Esqueleto de la Fase 1: la captura de audio y la transcripción llegan en la Fase 2.
+          {blocker}{" "}
+          {!status.model_installed && status.audio_ok && (
+            <button className="link" onClick={onGoSettings}>Ir a Preferencias para descargarlo</button>
+          )}
         </p>
       )}
 
-      <button className="cta" onClick={toggle} disabled={busy || !engine}>
+      <button className="cta" onClick={toggle} disabled={busy || !!blocker}>
         {recording ? "Detener" : "Hablar con VoxFlow"}
       </button>
       {(recording || busy) && (
@@ -53,11 +78,11 @@ export default function MainView({ state, engine, onNotice }: Props) {
           rows={7}
         />
         <div className="actions">
-          <button onClick={copy} disabled={!text}>Copiar</button>
-          <button disabled title="La inserción automática no está disponible; usa Copiar y pega manualmente.">
+          <button onClick={() => copy(text)} disabled={!text}>Copiar</button>
+          <button disabled title="La inserción automática aún no está disponible; usa Copiar y pega manualmente.">
             Insertar
           </button>
-          <button onClick={() => setText("")} disabled={!text}>Descartar</button>
+          <button onClick={discard} disabled={!text}>Descartar</button>
         </div>
       </section>
     </main>

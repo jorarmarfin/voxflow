@@ -7,7 +7,8 @@ vi.mock("./lib/api", async (orig) => {
     ...real,
     api: {
       getState: vi.fn().mockResolvedValue("IDLE"),
-      engineAvailable: vi.fn().mockResolvedValue(false),
+      getStatus: vi.fn().mockResolvedValue({ audio_ok: true, model_installed: false }),
+      dismiss: vi.fn(),
       toggleRecording: vi.fn(),
       cancel: vi.fn(),
       getSettings: vi.fn().mockResolvedValue({
@@ -16,18 +17,19 @@ vi.mock("./lib/api", async (orig) => {
       saveSettings: vi.fn(),
       onState: vi.fn().mockResolvedValue(() => {}),
       onNotice: vi.fn().mockResolvedValue(() => {}),
+      onTranscript: vi.fn().mockResolvedValue(() => {}),
     },
   };
 });
 
 import App from "./App";
 
-test("muestra estado listo y deshabilita grabar sin motor", async () => {
+test("muestra estado listo y deshabilita grabar sin modelo", async () => {
   render(<App />);
   expect(await screen.findByText("Listo")).toBeTruthy();
   await waitFor(() => {
     const btn = screen.getByRole("button", { name: "Hablar con VoxFlow" }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
   });
-  expect(screen.getByText(/Fase 2/)).toBeTruthy();
+  expect(screen.getByText(/Falta el modelo/)).toBeTruthy();
 });

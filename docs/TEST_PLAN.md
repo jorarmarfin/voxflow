@@ -15,3 +15,12 @@ Ver criterios de aceptación en `docs/SPEC.md` §10. Pruebas manuales Wayland/X1
 2. `./build.sh` → `.deb` y `.AppImage` generados. ✔
 3. Arranque del binario release 10 s sin errores. ✔
 4. Manual ⏳: abrir ventana, cambiar pestañas, guardar preferencias y comprobar `~/.config/pe.voxflow.app/settings.json`; menú de bandeja; botón grabar deshabilitado con aviso de Fase 2.
+
+## Fase 2
+Automáticas: `./build.sh` (14 Rust + 1 Vitest). Con hardware/modelo (`--ignored`): captura real y transcripción de `jfk.wav`. ✔
+Manuales ⏳ (hacer antes de cerrar la fase):
+1. Preferencias → *Descargar modelo* (borrando antes `~/.local/share/pe.voxflow.app/models`): progreso, instalación verificada; cortar la red a medias → no queda modelo inválido.
+2. Dictar frase en español peruano con "Laravel", "React", "Rust"; frase larga (>30 s).
+3. Cancelar durante grabación y durante transcripción → vuelve a IDLE y el micrófono se libera (`pactl list short source-outputs` vacío).
+4. Desconectar/cambiar micrófono → error legible.
+5. Verificar que `journalctl`/stderr no contienen texto dictado.

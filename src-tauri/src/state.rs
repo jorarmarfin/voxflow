@@ -62,13 +62,22 @@ impl Machine {
         }
     }
 
+    /// Desde READY permite dictar de nuevo (descarta el texto anterior).
     pub fn start(&mut self) -> Result<RecState, InvalidTransition> {
-        self.go(RecState::Idle, RecState::Recording, "start")
+        match self.state {
+            RecState::Idle | RecState::Ready => {
+                self.state = RecState::Recording;
+                Ok(self.state)
+            }
+            _ => Err(InvalidTransition {
+                from: self.state,
+                action: "start",
+            }),
+        }
     }
     pub fn stop(&mut self) -> Result<RecState, InvalidTransition> {
         self.go(RecState::Recording, RecState::Transcribing, "stop")
     }
-    #[allow(dead_code)] // se usa desde la Fase 2 (SpeechEngine)
     pub fn finish(&mut self) -> Result<RecState, InvalidTransition> {
         self.go(RecState::Transcribing, RecState::Ready, "finish")
     }
@@ -78,7 +87,6 @@ impl Machine {
         self.state
     }
     /// Texto entregado o descartado.
-    #[allow(dead_code)] // se usa desde la Fase 2
     pub fn dismiss(&mut self) -> Result<RecState, InvalidTransition> {
         self.go(RecState::Ready, RecState::Idle, "dismiss")
     }
@@ -103,6 +111,15 @@ mod tests {
         m.start().unwrap();
         assert!(m.start().is_err());
         assert_eq!(m.state(), RecState::Recording);
+    }
+
+    #[test]
+    fn puede_dictar_de_nuevo_desde_ready() {
+        let mut m = Machine::default();
+        m.start().unwrap();
+        m.stop().unwrap();
+        m.finish().unwrap();
+        assert_eq!(m.start(), Ok(RecState::Recording));
     }
 
     #[test]

@@ -1,24 +1,72 @@
+mod audio;
+mod models;
 mod settings;
+mod speech;
 mod state;
 
+use serde::Serialize;
 use settings::Settings;
+use speech::{SpeechEngine, WhisperEngine};
 use state::{Machine, RecState};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, State};
-
-/// AudioCapture y SpeechEngine se implementan en la Fase 2.
-/// Mientras tanto, iniciar una grabación devuelve un error explícito (sin simulaciones).
-const ENGINE_AVAILABLE: bool = false;
-const ENGINE_MSG: &str =
-    "La captura de audio y la transcripción aún no están implementadas (Fase 2).";
 
 struct App {
     machine: Mutex<Machine>,
     settings: Mutex<Settings>,
     settings_path: PathBuf,
+    models_dir: PathBuf,
+    recording: Mutex<Option<audio::Recording>>,
+    engine: Mutex<Option<(String, Arc<WhisperEngine>)>>,
+    /// Bandera de cancelación de la transcripción en curso.
+    cancel: Mutex<Arc<AtomicBool>>,
+    /// Se incrementa al cancelar: descarta resultados de transcripciones obsoletas.
+    generation: AtomicU64,
+    downloading: AtomicBool,
+    dl_cancel: Arc<AtomicBool>,
+}
+
+#[derive(Serialize)]
+struct Status {
+    audio_ok: bool,
+    model_installed: bool,
+}
+
+#[derive(Serialize, Clone)]
+struct Progress {
+    downloaded: u64,
+    total: u64,
+}
+
+#[derive(Serialize, Clone)]
+struct DownloadDone {
+    ok: bool,
+    error: Option<String>,
+}
+
+fn set_state(h: &AppHandle, s: RecState) {
+    let _ = h.emit("state-changed", s);
+    if let Some(t) = h.tray_by_id("main") {
+        let tip = match s {
+            RecState::Recording => "VoxFlow — GRABANDO (micrófono activo)",
+            RecState::Transcribing => "VoxFlow — transcribiendo…",
+            _ => "VoxFlow",
+        };
+        let _ = t.set_tooltip(Some(tip));
+    }
+}
+
+fn notice(h: &AppHandle, msg: impl Into<String>) {
+    let _ = h.emit("notice", msg.into());
+}
+
+fn model_installed(app: &App) -> bool {
+    let id = app.settings.lock().unwrap().model.clone();
+    models::path(&app.models_dir, &id).is_file()
 }
 
 #[tauri::command]
@@ -27,34 +75,146 @@ fn get_state(app: State<App>) -> RecState {
 }
 
 #[tauri::command]
-fn engine_available() -> bool {
-    ENGINE_AVAILABLE
-}
-
-fn toggle_inner(app: &App) -> Result<RecState, String> {
-    if !ENGINE_AVAILABLE {
-        return Err(ENGINE_MSG.into());
+fn get_status(app: State<App>) -> Status {
+    Status {
+        audio_ok: audio::available(),
+        model_installed: model_installed(&app),
     }
-    let mut m = app.machine.lock().unwrap();
-    match m.state() {
-        RecState::Idle => m.start(),
-        RecState::Recording => m.stop(),
-        _ => return Err("Operación en curso; cancela primero.".into()),
-    }
-    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn toggle_recording(app: State<App>, handle: AppHandle) -> Result<RecState, String> {
-    let s = toggle_inner(&app)?;
-    let _ = handle.emit("state-changed", s);
+async fn list_devices() -> Result<Vec<audio::Device>, String> {
+    audio::list_devices()
+}
+
+fn start_recording(h: &AppHandle, app: &App) -> Result<RecState, String> {
+    if !model_installed(app) {
+        return Err("Falta el modelo de voz. Descárgalo en Preferencias.".into());
+    }
+    let device = app.settings.lock().unwrap().device_id.clone();
+    let mut m = app.machine.lock().unwrap();
+    if !matches!(m.state(), RecState::Idle | RecState::Ready) {
+        return Err("Operación en curso; cancela primero.".into());
+    }
+    let rec = audio::start(device.as_deref())?;
+    *app.recording.lock().unwrap() = Some(rec);
+    let s = m.start().map_err(|e| e.to_string())?;
+    drop(m);
+    set_state(h, s);
     Ok(s)
 }
 
+fn stop_and_transcribe(h: &AppHandle, app: &App) -> Result<RecState, String> {
+    let rec = app.recording.lock().unwrap().take();
+    let samples = {
+        let mut m = app.machine.lock().unwrap();
+        let s = m.stop().map_err(|e| e.to_string());
+        match (s, rec) {
+            (Ok(_), Some(r)) => match r.stop() {
+                Ok(v) => v,
+                Err(e) => {
+                    let st = m.cancel();
+                    drop(m);
+                    set_state(h, st);
+                    return Err(e);
+                }
+            },
+            (Err(e), _) => return Err(e),
+            (Ok(_), None) => {
+                m.cancel();
+                return Err("No había grabación activa.".into());
+            }
+        }
+    };
+    set_state(h, RecState::Transcribing);
+
+    let flag = Arc::new(AtomicBool::new(false));
+    *app.cancel.lock().unwrap() = flag.clone();
+    let gen = app.generation.load(Ordering::SeqCst);
+    let h2 = h.clone();
+    std::thread::spawn(move || {
+        let app = h2.state::<App>();
+        let (model, language) = {
+            let s = app.settings.lock().unwrap();
+            (s.model.clone(), s.language.clone())
+        };
+        let result = (|| {
+            let engine = {
+                let mut slot = app.engine.lock().unwrap();
+                match slot.as_ref() {
+                    Some((id, e)) if *id == model => e.clone(),
+                    _ => {
+                        let e =
+                            Arc::new(WhisperEngine::load(&models::path(&app.models_dir, &model))?);
+                        *slot = Some((model.clone(), e.clone()));
+                        e
+                    }
+                }
+            };
+            engine.transcribe(&samples, &language, flag)
+        })();
+        if app.generation.load(Ordering::SeqCst) != gen {
+            return; // cancelada: el estado ya volvió a IDLE
+        }
+        let mut m = app.machine.lock().unwrap();
+        match result {
+            Ok(text) => {
+                if m.finish().is_ok() {
+                    drop(m);
+                    let _ = h2.emit("transcript", text);
+                    set_state(&h2, RecState::Ready);
+                }
+            }
+            Err(e) => {
+                let st = m.cancel();
+                drop(m);
+                set_state(&h2, st);
+                notice(&h2, e);
+            }
+        }
+    });
+    Ok(RecState::Transcribing)
+}
+
+fn toggle_inner(h: &AppHandle, app: &App) -> Result<RecState, String> {
+    let state = app.machine.lock().unwrap().state();
+    match state {
+        RecState::Recording => stop_and_transcribe(h, app),
+        RecState::Transcribing => Err("Transcribiendo; espera o cancela.".into()),
+        _ => start_recording(h, app),
+    }
+}
+
 #[tauri::command]
-fn cancel(app: State<App>, handle: AppHandle) -> RecState {
+fn toggle_recording(app: State<App>, h: AppHandle) -> Result<RecState, String> {
+    toggle_inner(&h, &app)
+}
+
+fn do_cancel(h: &AppHandle, app: &App) -> RecState {
+    app.generation.fetch_add(1, Ordering::SeqCst);
+    app.cancel.lock().unwrap().store(true, Ordering::SeqCst);
+    if let Some(r) = app.recording.lock().unwrap().take() {
+        r.cancel();
+    }
     let s = app.machine.lock().unwrap().cancel();
-    let _ = handle.emit("state-changed", s);
+    set_state(h, s);
+    s
+}
+
+#[tauri::command]
+fn cancel(app: State<App>, h: AppHandle) -> RecState {
+    do_cancel(&h, &app)
+}
+
+/// Texto entregado o descartado: vuelve a IDLE.
+#[tauri::command]
+fn dismiss(app: State<App>, h: AppHandle) -> RecState {
+    let s = {
+        let mut m = app.machine.lock().unwrap();
+        let _ = m.dismiss();
+        m.state()
+    };
+    set_state(&h, s);
     s
 }
 
@@ -70,8 +230,58 @@ fn save_settings(app: State<App>, settings: Settings) -> Result<Settings, String
     Ok(settings)
 }
 
-fn show_main(handle: &AppHandle) {
-    if let Some(w) = handle.get_webview_window("main") {
+#[tauri::command]
+fn model_status(app: State<App>) -> Vec<models::ModelStatus> {
+    models::status(&app.models_dir)
+}
+
+#[tauri::command]
+fn download_model(app: State<App>, h: AppHandle, id: String) -> Result<(), String> {
+    models::find(&id).ok_or("modelo desconocido")?;
+    if app.downloading.swap(true, Ordering::SeqCst) {
+        return Err("Ya hay una descarga en curso.".into());
+    }
+    app.dl_cancel.store(false, Ordering::SeqCst);
+    std::thread::spawn(move || {
+        let app = h.state::<App>();
+        let h2 = h.clone();
+        let r = models::download(&app.models_dir, &id, &app.dl_cancel, |d, t| {
+            let _ = h2.emit(
+                "download-progress",
+                Progress {
+                    downloaded: d,
+                    total: t,
+                },
+            );
+        });
+        app.downloading.store(false, Ordering::SeqCst);
+        let _ = h.emit(
+            "download-done",
+            DownloadDone {
+                ok: r.is_ok(),
+                error: r.err(),
+            },
+        );
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_download(app: State<App>) {
+    app.dl_cancel.store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+fn delete_model(app: State<App>, id: String) -> Result<(), String> {
+    if app.machine.lock().unwrap().state() != RecState::Idle {
+        return Err("No se puede eliminar el modelo durante una operación.".into());
+    }
+    *app.engine.lock().unwrap() = None;
+    models::delete(&app.models_dir, &id)
+}
+
+fn show_main(h: &AppHandle) {
+    if let Some(w) = h.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
@@ -79,16 +289,29 @@ fn show_main(handle: &AppHandle) {
 }
 
 pub fn run() {
+    // whisper.cpp imprime tokens/segmentos en stderr: se redirige al crate `log`,
+    // que no tiene logger instalado, así que nada de la transcripción se registra.
+    whisper_rs::install_logging_hooks();
     tauri::Builder::default()
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             let settings_path = dir.join("settings.json");
             let settings = Settings::load(&settings_path);
             let start_minimized = settings.start_minimized;
+            let models_dir = std::env::var_os("VOXFLOW_MODELS_DIR")
+                .map(PathBuf::from)
+                .unwrap_or(app.path().app_data_dir()?.join("models"));
             app.manage(App {
                 machine: Mutex::new(Machine::default()),
                 settings: Mutex::new(settings),
                 settings_path,
+                models_dir,
+                recording: Mutex::new(None),
+                engine: Mutex::new(None),
+                cancel: Mutex::new(Arc::new(AtomicBool::new(false))),
+                generation: AtomicU64::new(0),
+                downloading: AtomicBool::new(false),
+                dl_cancel: Arc::new(AtomicBool::new(false)),
             });
 
             let open = MenuItem::with_id(app, "open", "Abrir VoxFlow", true, None::<&str>)?;
@@ -101,7 +324,7 @@ pub fn run() {
             )?;
             let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &toggle, &quit])?;
-            TrayIconBuilder::new()
+            TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().cloned().ok_or("sin icono")?)
                 .tooltip("VoxFlow")
                 .menu(&menu)
@@ -109,17 +332,16 @@ pub fn run() {
                     "open" => show_main(h),
                     "toggle" => {
                         let app = h.state::<App>();
-                        match toggle_inner(&app) {
-                            Ok(s) => {
-                                let _ = h.emit("state-changed", s);
-                            }
-                            Err(msg) => {
-                                show_main(h);
-                                let _ = h.emit("notice", msg);
-                            }
+                        if let Err(msg) = toggle_inner(h, &app) {
+                            show_main(h);
+                            notice(h, msg);
                         }
                     }
-                    "quit" => h.exit(0),
+                    "quit" => {
+                        let app = h.state::<App>();
+                        do_cancel(h, &app);
+                        h.exit(0)
+                    }
                     _ => {}
                 })
                 .build(app)?;
@@ -133,11 +355,17 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
-            engine_available,
+            get_status,
+            list_devices,
             toggle_recording,
             cancel,
+            dismiss,
             get_settings,
-            save_settings
+            save_settings,
+            model_status,
+            download_model,
+            cancel_download,
+            delete_model
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar VoxFlow");
