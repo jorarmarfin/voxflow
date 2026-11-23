@@ -28,7 +28,7 @@ Compila y transcribe con éxito. Mantiene la interfaz `SpeechEngine` sustituible
 | Compilación whisper.cpp vía cmake | Probado |
 | Transcripción WAV offline (modelo local) | Probado (en inglés) |
 | Captura micrófono con `pw-record` (PipeWire) | Herramienta presente; **no probada con habla real** |
-| Clipboard Wayland (`wl-copy`) / X11 (`xclip`) | `wl-copy` presente, `xclip` no instalado; **no probado** |
+| Clipboard Wayland (`wl-copy`) / X11 (`xclip`) | `wl-copy` y `xclip` presentes (corrección: `xclip` sí estaba, `--version` no existe en xclip); X11 probado en Fase 3 |
 | Atajo global / inserción en Wayland | **No probado** (la sesión actual es X11). No se asume soporte |
 | `ydotool` | No instalado; requeriría `uinput`/privilegios, no se configura |
 | Librerías Tauri 2 | Presentes: webkit2gtk-4.1, gtk-3, appindicator, rsvg. Faltan `libasound2-dev`, `libpipewire-0.3-dev`, `libclang-dev` (requieren sudo) |
@@ -72,3 +72,23 @@ Aspecto visual de la ventana y comportamiento real de la bandeja en GNOME (requi
 - Descarga desde la app (solo se probó `fetch-model.sh`; el código de `models.rs` no se ejercitó contra la red) y fallo de red/espacio.
 - Desconexión del micrófono durante la grabación (se detecta solo si no llega audio).
 - Rendimiento: solo 1 clip (RTF ~0,19 con `base`, CPU); sin objetivos definidos.
+
+# Fase 3 — Integración Linux (2026-11-23)
+
+- **`voxflow --toggle`:** `tauri-plugin-single-instance` (D-Bus): una 2.ª ejecución reenvía sus argumentos a la instancia en marcha y termina. En arranque en frío con `--toggle` la app inicia oculta y empieza a grabar. No roba el foco; el estado se comunica por notificaciones (`notify-send`, sin texto dictado) y tooltip de bandeja. La ventana arranca oculta (`visible:false`) y se muestra salvo `start_minimized`/`--toggle`.
+- **Atajo GNOME:** `scripts/install-gnome-shortcut.sh` (gsettings) añade/quita solo su entrada. Probado con backend `keyfile` aislado (crear, idempotencia, quitar), sin tocar la config real. No es configuración silenciosa: la ejecuta el usuario.
+- **Portapapeles:** herramientas del sistema con el texto por stdin (nunca argv). Wayland → `wl-copy` (funciona en GNOME, que no soporta wlr-data-control, por lo que se descartó `arboard`/plugin de Tauri); X11 → `xclip`/`xsel`. `.deb` depende de `wl-clipboard | xclip`, `libnotify-bin`, `pipewire-bin`, `pulseaudio-utils`.
+- **Inserción automática: NO implementada** (`InsertResult::Unsupported`). No se puede garantizar la ventana de destino sin permisos extra: en Wayland no hay API general; en X11 se evaluó `xdotool` (no instalado aquí, no probado) con guarda de ventana activa. El botón *Insertar* copia el texto y avisa de pegar con Ctrl+V (cumple criterio 5). `ydotool`/`uinput` descartado: exige privilegios.
+- **Diagnóstico** en Preferencias: sesión (X11/Wayland), herramienta de portapapeles, notificaciones, inserción.
+
+## Verificado (X11, Ubuntu 24.04 GNOME, release)
+- Instancia en marcha + `voxflow --toggle` ×2: 1.ª → `pw-record` activo; 2.ª → se detiene, el micrófono se libera, se transcribe y (modo *clipboard*) el texto aparece en el portapapeles. 3 ciclos consecutivos OK; una sola instancia; stderr sin texto dictado.
+- Arranque en frío con `--toggle`: empieza a grabar con una sola instancia; al terminar el proceso no queda `pw-record`.
+- Test ignorado: copia y relectura del portapapeles con `xclip`.
+- Tests unitarios: detección de sesión, orden de herramientas, parseo de `--toggle`. `./build.sh` OK (18 tests Rust + 1 Vitest), `.deb` con `Depends` correctos.
+## No verificado
+- **Wayland (sesión real):** `wl-copy`, atajo, foco de ventana. Solo hay lógica y orden de herramientas con tests unitarios.
+- Atajo GNOME real con la pulsación de teclas (solo el script sobre backend aislado).
+- Instalación del `.deb` en un sistema limpio; AppImage con `--toggle`.
+- Notificaciones: se invoca `notify-send`, no se comprobó visualmente que aparezcan.
+- Carrera: si `--toggle` se lanza antes de que la 1.ª instancia haya registrado su D-Bus, puede iniciarse una 2.ª instancia (un intento anterior sin sleep suficiente falló sin causa identificada).

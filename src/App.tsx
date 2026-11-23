@@ -49,7 +49,6 @@ export default function App() {
         <MainView
           state={state}
           status={status}
-          settings={settings}
           transcript={transcript}
           onNotice={setNotice}
           onGoSettings={() => setView("settings")}

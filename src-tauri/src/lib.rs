@@ -1,5 +1,6 @@
 mod audio;
 mod models;
+mod output;
 mod settings;
 mod speech;
 mod state;
@@ -26,6 +27,8 @@ struct App {
     cancel: Mutex<Arc<AtomicBool>>,
     /// Se incrementa al cancelar: descarta resultados de transcripciones obsoletas.
     generation: AtomicU64,
+    /// La operación en curso se inició desde el atajo/bandeja (ventana posiblemente oculta).
+    background: AtomicBool,
     downloading: AtomicBool,
     dl_cancel: Arc<AtomicBool>,
 }
@@ -87,7 +90,7 @@ async fn list_devices() -> Result<Vec<audio::Device>, String> {
     audio::list_devices()
 }
 
-fn start_recording(h: &AppHandle, app: &App) -> Result<RecState, String> {
+fn start_recording(h: &AppHandle, app: &App, background: bool) -> Result<RecState, String> {
     if !model_installed(app) {
         return Err("Falta el modelo de voz. Descárgalo en Preferencias.".into());
     }
@@ -100,7 +103,11 @@ fn start_recording(h: &AppHandle, app: &App) -> Result<RecState, String> {
     *app.recording.lock().unwrap() = Some(rec);
     let s = m.start().map_err(|e| e.to_string())?;
     drop(m);
+    app.background.store(background, Ordering::SeqCst);
     set_state(h, s);
+    if background {
+        output::notify("Grabando… ejecuta el atajo de nuevo para detener.");
+    }
     Ok(s)
 }
 
@@ -127,6 +134,9 @@ fn stop_and_transcribe(h: &AppHandle, app: &App) -> Result<RecState, String> {
         }
     };
     set_state(h, RecState::Transcribing);
+    if app.background.load(Ordering::SeqCst) {
+        output::notify("Transcribiendo…");
+    }
 
     let flag = Arc::new(AtomicBool::new(false));
     *app.cancel.lock().unwrap() = flag.clone();
@@ -156,38 +166,71 @@ fn stop_and_transcribe(h: &AppHandle, app: &App) -> Result<RecState, String> {
         if app.generation.load(Ordering::SeqCst) != gen {
             return; // cancelada: el estado ya volvió a IDLE
         }
+        let background = app.background.load(Ordering::SeqCst);
+        let mode = app.settings.lock().unwrap().output_mode.clone();
         let mut m = app.machine.lock().unwrap();
         match result {
             Ok(text) => {
                 if m.finish().is_ok() {
                     drop(m);
-                    let _ = h2.emit("transcript", text);
+                    let _ = h2.emit("transcript", &text);
                     set_state(&h2, RecState::Ready);
+                    deliver(&h2, &text, mode, background);
                 }
             }
             Err(e) => {
                 let st = m.cancel();
                 drop(m);
                 set_state(&h2, st);
-                notice(&h2, e);
+                fail(&h2, e, background);
             }
         }
     });
     Ok(RecState::Transcribing)
 }
 
-fn toggle_inner(h: &AppHandle, app: &App) -> Result<RecState, String> {
+/// Entrega el texto según el modo de salida. Las notificaciones no incluyen el texto.
+fn deliver(h: &AppHandle, text: &str, mode: settings::OutputMode, background: bool) {
+    match mode {
+        settings::OutputMode::Clipboard => match output::copy(text) {
+            Ok(_) => {
+                notice(h, "Texto copiado al portapapeles. Pega con Ctrl+V.");
+                output::notify("Texto copiado. Pega con Ctrl+V.");
+            }
+            Err(e) => {
+                show_main(h);
+                notice(h, e);
+            }
+        },
+        settings::OutputMode::Preview => {
+            if background {
+                show_main(h);
+                output::notify("Texto listo en VoxFlow: revísalo y copia.");
+            }
+        }
+    }
+}
+
+/// Error recuperable: aviso en la UI y, si no hay ventana a la vista, notificación.
+fn fail(h: &AppHandle, msg: String, background: bool) {
+    if background {
+        output::notify(&msg);
+    }
+    notice(h, msg);
+}
+
+fn toggle_inner(h: &AppHandle, app: &App, background: bool) -> Result<RecState, String> {
     let state = app.machine.lock().unwrap().state();
     match state {
         RecState::Recording => stop_and_transcribe(h, app),
         RecState::Transcribing => Err("Transcribiendo; espera o cancela.".into()),
-        _ => start_recording(h, app),
+        _ => start_recording(h, app, background),
     }
 }
 
 #[tauri::command]
 fn toggle_recording(app: State<App>, h: AppHandle) -> Result<RecState, String> {
-    toggle_inner(&h, &app)
+    toggle_inner(&h, &app, false)
 }
 
 fn do_cancel(h: &AppHandle, app: &App) -> RecState {
@@ -228,6 +271,26 @@ fn save_settings(app: State<App>, settings: Settings) -> Result<Settings, String
     settings.save(&app.settings_path)?;
     *app.settings.lock().unwrap() = settings.clone();
     Ok(settings)
+}
+
+#[tauri::command]
+fn copy_text(text: String) -> Result<(), String> {
+    output::copy(&text).map(|_| ())
+}
+
+/// Inserción segura: sin mecanismo validado, copia y avisa de que hay que pegar a mano.
+#[tauri::command]
+fn insert_text(text: String) -> Result<output::InsertResult, String> {
+    let r = output::insert(&text);
+    if r == output::InsertResult::Unsupported {
+        output::copy(&text)?;
+    }
+    Ok(r)
+}
+
+#[tauri::command]
+fn get_diagnostics() -> output::Diagnostics {
+    output::diagnostics()
 }
 
 #[tauri::command]
@@ -280,6 +343,15 @@ fn delete_model(app: State<App>, id: String) -> Result<(), String> {
     models::delete(&app.models_dir, &id)
 }
 
+/// Alterna la grabación desde el atajo (`voxflow --toggle`) o la bandeja, sin robar el foco.
+fn background_toggle(h: &AppHandle) {
+    let app = h.state::<App>();
+    if let Err(msg) = toggle_inner(h, &app, true) {
+        output::notify(&msg);
+        notice(h, msg);
+    }
+}
+
 fn show_main(h: &AppHandle) {
     if let Some(w) = h.get_webview_window("main") {
         let _ = w.show();
@@ -293,6 +365,15 @@ pub fn run() {
     // que no tiene logger instalado, así que nada de la transcripción se registra.
     whisper_rs::install_logging_hooks();
     tauri::Builder::default()
+        // Debe ser el primer plugin: una 2.ª ejecución (`voxflow --toggle`) reenvía sus
+        // argumentos a la instancia en marcha y termina.
+        .plugin(tauri_plugin_single_instance::init(|h, args, _cwd| {
+            if output::wants_toggle(&args) {
+                background_toggle(h);
+            } else {
+                show_main(h);
+            }
+        }))
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             let settings_path = dir.join("settings.json");
@@ -310,6 +391,7 @@ pub fn run() {
                 engine: Mutex::new(None),
                 cancel: Mutex::new(Arc::new(AtomicBool::new(false))),
                 generation: AtomicU64::new(0),
+                background: AtomicBool::new(false),
                 downloading: AtomicBool::new(false),
                 dl_cancel: Arc::new(AtomicBool::new(false)),
             });
@@ -331,11 +413,7 @@ pub fn run() {
                 .on_menu_event(|h, ev| match ev.id.as_ref() {
                     "open" => show_main(h),
                     "toggle" => {
-                        let app = h.state::<App>();
-                        if let Err(msg) = toggle_inner(h, &app) {
-                            show_main(h);
-                            notice(h, msg);
-                        }
+                        background_toggle(h);
                     }
                     "quit" => {
                         let app = h.state::<App>();
@@ -346,10 +424,13 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            if start_minimized {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.hide();
-                }
+            let cli_toggle = output::wants_toggle(&std::env::args().collect::<Vec<_>>());
+            if !start_minimized && !cli_toggle {
+                show_main(app.handle());
+            }
+            if cli_toggle {
+                // Arranque en frío con --toggle: iniciar a dictar sin mostrar la ventana.
+                background_toggle(app.handle());
             }
             Ok(())
         })
@@ -365,7 +446,10 @@ pub fn run() {
             model_status,
             download_model,
             cancel_download,
-            delete_model
+            delete_model,
+            copy_text,
+            insert_text,
+            get_diagnostics
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar VoxFlow");

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, errMsg, type Device, type ModelStatus, type OutputMode, type Progress, type Settings } from "../lib/api";
+import { api, errMsg, type Device, type Diagnostics, type ModelStatus, type OutputMode, type Progress, type Settings } from "../lib/api";
 
 interface Props {
   settings: Settings;
@@ -16,6 +16,7 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
   const [models, setModels] = useState<ModelStatus[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [diag, setDiag] = useState<Diagnostics | null>(null);
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setDraft({ ...draft, [k]: v });
   const model = models.find((m) => m.id === draft.model);
 
@@ -24,6 +25,7 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
   useEffect(() => {
     api.listDevices().then(setDevices).catch((e) => onNotice(errMsg(e)));
     void refreshModels();
+    api.getDiagnostics().then(setDiag).catch(() => setDiag(null));
     const subs = [
       api.onProgress(setProgress),
       api.onDownloadDone((d) => {
@@ -126,8 +128,19 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
         </p>
         <h2>Atajo de teclado</h2>
         <p className="muted small">
-          En GNOME, asigna un atajo personalizado que ejecute <code>voxflow --toggle</code> (disponible en la Fase 3).
+          Asigna en tu escritorio un atajo que ejecute <code>voxflow --toggle</code>: la primera vez empieza a
+          grabar y la siguiente detiene y transcribe. En GNOME: <code>scripts/install-gnome-shortcut.sh</code>
+          (ver README).
         </p>
+        <h2>Diagnóstico</h2>
+        {diag && (
+          <ul className="muted small">
+            <li>Sesión: {diag.session === "wayland" ? "Wayland" : diag.session === "x11" ? "X11" : "desconocida"}</li>
+            <li>Portapapeles: {diag.clipboard_tool ?? "no disponible (instala wl-clipboard o xclip)"}</li>
+            <li>Notificaciones: {diag.notifications ? "notify-send" : "no disponible (instala libnotify-bin)"}</li>
+            <li>Inserción automática: no disponible (el texto se copia y se pega con Ctrl+V)</li>
+          </ul>
+        )}
       </section>
     </main>
   );

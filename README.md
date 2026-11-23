@@ -5,12 +5,13 @@
 Dictado local en español para Ubuntu 24.04 (X11/Wayland). Audio y texto se procesan en tu equipo (whisper.cpp); sin telemetría.
 Especificación: [docs/SPEC.md](docs/SPEC.md) · Decisiones: [docs/DECISIONS.md](docs/DECISIONS.md) · Pruebas: [docs/TEST_PLAN.md](docs/TEST_PLAN.md)
 
-> **Estado: Fase 2 (voz).** Graba del micrófono (PipeWire vía `pw-record`), transcribe en local con whisper.cpp y muestra el texto editable con Copiar. Gestión de modelos con descarga verificada. **Aún no** hay `voxflow --toggle` ni inserción automática (Fase 3). Probado en X11; Wayland sin validar.
+> **Estado: Fase 3 (integración Linux).** Dictado por ventana o por atajo global (`voxflow --toggle`), copia al portapapeles (Wayland: `wl-copy`; X11: `xclip`/`xsel`) y notificaciones. **No hay inserción automática**: el texto se copia y se pega con Ctrl+V. Probado en **X11**; **Wayland sin validar** (ver abajo).
 
 ## Requisitos (Ubuntu 24.04 / Linux)
 
 ```bash
-sudo apt install build-essential cmake pkg-config clang libclang-dev curl ffmpeg pipewire-bin \
+sudo apt install wl-clipboard xclip libnotify-bin pulseaudio-utils \
+  build-essential cmake pkg-config clang libclang-dev curl ffmpeg pipewire-bin \
   libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev
 # Rust estable: https://rustup.rs  ·  Node 20+ y pnpm (https://pnpm.io/installation)
 ```
@@ -37,6 +38,20 @@ Preferencias: `~/.config/pe.voxflow.app/settings.json` (sin audio ni texto). Mod
 **Pruebas con hardware/modelo** (ignoradas por defecto): `cd src-tauri && VOXFLOW_MODELS_DIR=../models cargo test --lib -- --ignored --nocapture`
 
 No hay CI/CD: todo se compila y ejecuta en local con `build.sh` y `run.sh`.
+
+## Atajo de teclado (`voxflow --toggle`)
+
+`voxflow --toggle` alterna la grabación en la instancia en marcha (o abre la app y empieza a grabar si no hay ninguna): 1.ª vez graba, 2.ª detiene y transcribe. No roba el foco; avisa con notificaciones (que nunca incluyen el texto). Según el **modo de salida**: *Copiar directo* → copia y notifica "Pega con Ctrl+V"; *Vista previa* → abre la ventana con el texto.
+
+**GNOME** (script que solo añade/quita su propia entrada y conserva tus otros atajos):
+```bash
+scripts/install-gnome-shortcut.sh                          # Super+Alt+V → voxflow --toggle (.deb instalado)
+scripts/install-gnome-shortcut.sh --binding '<Ctrl><Alt>d' --command /ruta/VoxFlow_0.1.0_amd64.AppImage
+scripts/install-gnome-shortcut.sh --remove
+```
+Manual: Ajustes → Teclado → Atajos personalizados → comando `voxflow --toggle`. En KDE: Preferencias → Atajos → Comando personalizado con el mismo comando.
+
+**Limitaciones (Wayland):** no hay escucha global de teclas ni inserción en otras ventanas; por eso el atajo lo gestiona el escritorio y el texto se pega a mano. Con la ventana en segundo plano, Wayland puede impedir que VoxFlow la traiga al frente.
 
 ## Desinstalar
 - Instalado con `.deb`: `sudo apt remove voxflow`. AppImage: borra el archivo.

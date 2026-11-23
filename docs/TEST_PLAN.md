@@ -24,3 +24,11 @@ Manuales ⏳ (hacer antes de cerrar la fase):
 3. Cancelar durante grabación y durante transcripción → vuelve a IDLE y el micrófono se libera (`pactl list short source-outputs` vacío).
 4. Desconectar/cambiar micrófono → error legible.
 5. Verificar que `journalctl`/stderr no contienen texto dictado.
+
+## Fase 3
+Automáticas: `./build.sh` (18 Rust + 1 Vitest); `cargo test --lib -- --ignored` (clipboard X11, captura, transcripción).
+Realizadas a mano (X11): ciclo `--toggle` ×3 con instancia en marcha; arranque en frío; liberación del micrófono. ✔
+Pendientes ⏳:
+1. Sesión **GNOME Wayland**: `voxflow --toggle` desde atajo real, `wl-copy`, notificaciones y comportamiento de `show_main`.
+2. Instalar el `.deb` en VM limpia (dependencias) y probar el AppImage con `--toggle`.
+3. Atajo real: `scripts/install-gnome-shortcut.sh`, pulsar la combinación, dictar en VS Code/navegador y pegar.

@@ -34,7 +34,17 @@ export interface DownloadDone {
   error: string | null;
 }
 
+export interface Diagnostics {
+  session: "wayland" | "x11" | "unknown";
+  clipboard_tool: string | null;
+  notifications: boolean;
+  auto_insert: boolean;
+}
+
 export const api = {
+  copyText: (text: string) => invoke<void>("copy_text", { text }),
+  insertText: (text: string) => invoke<"unsupported">("insert_text", { text }),
+  getDiagnostics: () => invoke<Diagnostics>("get_diagnostics"),
   getState: () => invoke<RecState>("get_state"),
   getStatus: () => invoke<Status>("get_status"),
   listDevices: () => invoke<Device[]>("list_devices"),

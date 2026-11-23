@@ -9,6 +9,9 @@ vi.mock("./lib/api", async (orig) => {
       getState: vi.fn().mockResolvedValue("IDLE"),
       getStatus: vi.fn().mockResolvedValue({ audio_ok: true, model_installed: false }),
       dismiss: vi.fn(),
+      copyText: vi.fn(),
+      insertText: vi.fn(),
+      getDiagnostics: vi.fn(),
       toggleRecording: vi.fn(),
       cancel: vi.fn(),
       getSettings: vi.fn().mockResolvedValue({

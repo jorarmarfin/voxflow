@@ -1,35 +1,41 @@
 import { useEffect, useState } from "react";
-import { api, errMsg, STATE_LABEL, type RecState, type Settings, type Status } from "../lib/api";
+import { api, errMsg, STATE_LABEL, type RecState, type Status } from "../lib/api";
 
 interface Props {
   state: RecState;
   status: Status;
-  settings: Settings | null;
   transcript: { text: string; n: number } | null;
   onNotice: (m: string | null) => void;
   onGoSettings: () => void;
 }
 
-export default function MainView({ state, status, settings, transcript, onNotice, onGoSettings }: Props) {
+export default function MainView({ state, status, transcript, onNotice, onGoSettings }: Props) {
   const [text, setText] = useState("");
   const recording = state === "RECORDING";
   const busy = state === "TRANSCRIBING";
 
   const copy = async (value: string) => {
     try {
-      await navigator.clipboard.writeText(value);
+      await api.copyText(value);
       onNotice("Copiado al portapapeles. Pega con Ctrl+V.");
     } catch (e) {
       onNotice(`No se pudo copiar: ${errMsg(e)}`);
     }
   };
 
-  // Nueva transcripción: mostrarla; en modo "clipboard" se copia directo.
+  // Insertar: sin mecanismo seguro validado, el backend copia y avisamos de pegar a mano.
+  const insert = async () => {
+    try {
+      await api.insertText(text);
+      onNotice("Inserción automática no disponible en esta sesión: el texto está copiado, pégalo con Ctrl+V.");
+    } catch (e) {
+      onNotice(`No se pudo copiar: ${errMsg(e)}`);
+    }
+  };
+
+  // Nueva transcripción: mostrarla (en modo "clipboard" el backend ya la copió).
   useEffect(() => {
-    if (!transcript) return;
-    setText(transcript.text);
-    if (settings?.output_mode === "clipboard") void copy(transcript.text);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (transcript) setText(transcript.text);
   }, [transcript]);
 
   const toggle = () => api.toggleRecording().catch((e) => onNotice(errMsg(e)));
@@ -79,7 +85,7 @@ export default function MainView({ state, status, settings, transcript, onNotice
         />
         <div className="actions">
           <button onClick={() => copy(text)} disabled={!text}>Copiar</button>
-          <button disabled title="La inserción automática aún no está disponible; usa Copiar y pega manualmente.">
+          <button onClick={insert} disabled={!text} title="Copia el texto; la inserción automática no está disponible">
             Insertar
           </button>
           <button onClick={discard} disabled={!text}>Descartar</button>
