@@ -1,0 +1,8 @@
+target/
+node_modules/
+dist/
+models/*.bin
+*.wav
+!tests/fixtures/*.wav
+.env
+tests/fixtures/mic-*.wav

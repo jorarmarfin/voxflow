@@ -1,0 +1,9 @@
+[package]
+name = "whisper-poc"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+whisper-rs = "0.16"
+hound = "3.5"
