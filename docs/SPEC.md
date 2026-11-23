@@ -162,7 +162,7 @@ Diseño sobrio, accesible, tema claro/oscuro, teclado y estados perceptibles. Ma
 7. Una descarga fallida no deja un modelo inválido como instalado.
 8. Sin activar historial, ningún texto dictado queda persistido ni aparece en logs.
 9. El empaquetado incluye instrucciones para dependencias del sistema y desinstalación.
-10. Existe un conjunto reproducible de pruebas y una lista explícita de limitaciones Wayland.
+10. Existe un conjunto reproducible de pruebas y una lista explícita de limitaciones Wayland. *(La inserción automática en el cursor queda fuera del MVP: Fase 5.)*
 
 ## 11. Plan de ejecución para el agente
 
@@ -191,6 +191,13 @@ Diseño sobrio, accesible, tema claro/oscuro, teclado y estados perceptibles. Ma
 - Pruebas de aceptación, seguridad y rendimiento.
 - Crear `.deb`, `.AppImage`, changelog y release notes.
 - Publicar release de prueba sin datos personales ni secretos.
+
+### Fase 5 — Inserción en la posición del cursor (post-MVP, añadida 2026-11-23)
+- **X11 (primero):** adaptador `TextOutput.insert` con `xdotool`: copiar el texto y enviar Ctrl+V a la ventana activa. Guarda de seguridad: registrar el ID de la ventana activa al iniciar la grabación y solo insertar si sigue siendo la activa al terminar; si no, dejar el texto copiado y avisar.
+- Detectar terminales (Ctrl+Shift+V) o hacerlo configurable; restaurar el portapapeles previo si es viable; opción de activar/desactivar la inserción automática (desactivada por defecto hasta validarla).
+- `xdotool` como dependencia opcional del `.deb` (`Recommends`); diagnóstico en Preferencias; si falta, fallback a portapapeles.
+- Pruebas: VS Code, navegador, terminal y un cambio de ventana durante la grabación (no debe insertar).
+- **Wayland (después, solo con pruebas reales en GNOME):** evaluar el portal RemoteDesktop + libei (con consentimiento del usuario); `ydotool`/`uinput` solo con consentimiento explícito y documentando privilegios; motor IBus como alternativa robusta. No afirmar soporte sin validarlo.
 
 **Regla para el agente:** completar cada fase con código compilable, pruebas, README actualizado y listado de limitaciones; no afirmar funcionalidades que no se hayan probado.
 
