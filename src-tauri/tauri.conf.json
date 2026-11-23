@@ -46,6 +46,10 @@
           "pulseaudio-utils",
           "wl-clipboard | xclip",
           "libnotify-bin"
+        ],
+        "recommends": [
+          "xdotool",
+          "x11-utils"
         ]
       }
     }

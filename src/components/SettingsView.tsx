@@ -111,6 +111,9 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
         <select id="out" value={draft.output_mode} onChange={(e) => set("output_mode", e.target.value as OutputMode)}>
           <option value="preview">Vista previa antes de copiar</option>
           <option value="clipboard">Copiar directo al portapapeles</option>
+          <option value="insert" disabled={!diag?.auto_insert}>
+            Insertar en la ventana activa (atajo; X11 + xdotool)
+          </option>
         </select>
 
         <label className="check">
@@ -138,7 +141,12 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
             <li>Sesión: {diag.session === "wayland" ? "Wayland" : diag.session === "x11" ? "X11" : "desconocida"}</li>
             <li>Portapapeles: {diag.clipboard_tool ?? "no disponible (instala wl-clipboard o xclip)"}</li>
             <li>Notificaciones: {diag.notifications ? "notify-send" : "no disponible (instala libnotify-bin)"}</li>
-            <li>Inserción automática: no disponible (el texto se copia y se pega con Ctrl+V)</li>
+            <li>
+              Inserción en el cursor:{" "}
+              {diag.auto_insert
+                ? `disponible (${diag.insert_tool}); solo con el atajo, pega en la ventana que tenías activa al empezar`
+                : "no disponible (requiere sesión X11 y xdotool); el texto se copia y se pega con Ctrl+V"}
+            </li>
           </ul>
         )}
       </section>

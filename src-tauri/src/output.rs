@@ -3,9 +3,7 @@
 //! - Portapapeles por herramienta del sistema, con el texto por stdin (nunca por argv):
 //!   Wayland → `wl-copy` (funciona en GNOME, que no soporta wlr-data-control);
 //!   X11 → `xclip` o `xsel`.
-//! - La inserción automática en la ventana activa NO está implementada: ni Wayland ni
-//!   X11 permiten garantizar que la ventana de destino sea la esperada sin permisos
-//!   adicionales. Siempre devuelve `Unsupported` y el texto queda copiado.
+//! - La inserción en la ventana activa vive en `insert.rs` (solo X11 + xdotool, con guarda).
 //! - Las notificaciones (`notify-send`) nunca incluyen texto dictado.
 use serde::Serialize;
 use std::io::Write;
@@ -41,7 +39,7 @@ pub fn session() -> Session {
     )
 }
 
-fn have(cmd: &str) -> bool {
+pub(crate) fn have(cmd: &str) -> bool {
     std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).any(|d| d.join(cmd).is_file()))
         .unwrap_or(false)
@@ -92,15 +90,23 @@ pub fn copy(text: &str) -> Result<&'static str, String> {
     Err("No hay portapapeles disponible: instala wl-clipboard (Wayland) o xclip (X11).".into())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum InsertResult {
-    Unsupported,
-}
-
-/// Inserción segura: sin mecanismo validado devuelve `Unsupported` (el llamador copia y avisa).
-pub fn insert(_text: &str) -> InsertResult {
-    InsertResult::Unsupported
+/// Lee el texto actual del portapapeles (para restaurarlo tras pegar). `None` si no hay
+/// texto o no se puede leer. Nunca se registra.
+pub fn read() -> Option<String> {
+    let (cmd, args): (&str, &[&str]) = match session() {
+        Session::Wayland if have("wl-paste") => ("wl-paste", &["--no-newline"]),
+        _ if have("xclip") => ("xclip", &["-selection", "clipboard", "-o"]),
+        _ if have("xsel") => ("xsel", &["--clipboard", "--output"]),
+        _ => return None,
+    };
+    let out = Command::new(cmd)
+        .args(args)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    (out.status.success() && !out.stdout.is_empty())
+        .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 pub fn notify(body: &str) {
@@ -127,6 +133,7 @@ pub struct Diagnostics {
     pub clipboard_tool: Option<&'static str>,
     pub notifications: bool,
     pub auto_insert: bool,
+    pub insert_tool: Option<&'static str>,
 }
 
 pub fn diagnostics() -> Diagnostics {
@@ -134,7 +141,8 @@ pub fn diagnostics() -> Diagnostics {
         session: session(),
         clipboard_tool: clipboard_tool(),
         notifications: have("notify-send"),
-        auto_insert: false,
+        auto_insert: crate::insert::available(),
+        insert_tool: crate::insert::available().then_some("xdotool"),
     }
 }
 
@@ -177,11 +185,6 @@ mod tests {
         assert!(wants_toggle(&a(&["voxflow", "--toggle"])));
         assert!(!wants_toggle(&a(&["voxflow"])));
         assert!(!wants_toggle(&a(&["voxflow", "--toggled"])));
-    }
-
-    #[test]
-    fn insercion_siempre_no_soportada() {
-        assert_eq!(insert("hola"), InsertResult::Unsupported);
     }
 
     /// Requiere sesión gráfica y xclip/wl-copy: `cargo test -- --ignored`

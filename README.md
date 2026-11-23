@@ -5,12 +5,12 @@
 Dictado local en español para Ubuntu 24.04 (X11/Wayland). Audio y texto se procesan en tu equipo (whisper.cpp); sin telemetría.
 Especificación: [docs/SPEC.md](docs/SPEC.md) · Decisiones: [docs/DECISIONS.md](docs/DECISIONS.md) · Pruebas: [docs/TEST_PLAN.md](docs/TEST_PLAN.md)
 
-> **Estado: Fase 3 (integración Linux).** Dictado por ventana o por atajo global (`voxflow --toggle`), copia al portapapeles (Wayland: `wl-copy`; X11: `xclip`/`xsel`) y notificaciones. **No hay inserción automática**: el texto se copia y se pega con Ctrl+V. Probado en **X11**; **Wayland sin validar** (ver abajo).
+> **Estado: Fase 5 (inserción en el cursor, X11).** Dictado por ventana o atajo (`voxflow --toggle`), copia al portapapeles y, en **X11 con `xdotool`**, inserción directa en la ventana que tenías activa. **Wayland: sin inserción** (solo portapapeles) y sin validar en sesión real.
 
 ## Requisitos (Ubuntu 24.04 / Linux)
 
 ```bash
-sudo apt install wl-clipboard xclip libnotify-bin pulseaudio-utils \
+sudo apt install xdotool x11-utils wl-clipboard xclip libnotify-bin pulseaudio-utils \
   build-essential cmake pkg-config clang libclang-dev curl ffmpeg pipewire-bin \
   libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev
 # Rust estable: https://rustup.rs  ·  Node 20+ y pnpm (https://pnpm.io/installation)
@@ -50,6 +50,11 @@ scripts/install-gnome-shortcut.sh --binding '<Ctrl><Alt>d' --command /ruta/VoxFl
 scripts/install-gnome-shortcut.sh --remove
 ```
 Manual: Ajustes → Teclado → Atajos personalizados → comando `voxflow --toggle`. En KDE: Preferencias → Atajos → Comando personalizado con el mismo comando.
+
+## Insertar en la posición del cursor (X11)
+
+Requiere sesión **X11**, `xdotool` y `xprop` (`x11-utils`); el `.deb` los *recomienda*. Preferencias → Modo de salida → **Insertar en la ventana activa**. Funciona **solo con el atajo** (`voxflow --toggle`): al empezar a grabar se guarda la ventana activa y, al terminar, se pega (Ctrl+V; Ctrl+Shift+V en terminales) **solo si sigue siendo esa ventana**. Si cambiaste de ventana, no es seguro o falta algo, **no se escribe nada**: el texto queda copiado y se avisa. Tras pegar se restaura el texto que tenías antes en el portapapeles (si era texto; imágenes u otros formatos no se restauran).
+Evita usarlo con campos de contraseña o ventanas sensibles: VoxFlow no puede saber qué hay en el campo enfocado. El botón *Insertar* de la ventana solo copia (el foco está en VoxFlow).
 
 **Limitaciones (Wayland):** no hay escucha global de teclas ni inserción en otras ventanas; por eso el atajo lo gestiona el escritorio y el texto se pega a mano. Con la ventana en segundo plano, Wayland puede impedir que VoxFlow la traiga al frente.
 

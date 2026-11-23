@@ -27,7 +27,7 @@ export default function MainView({ state, status, transcript, onNotice, onGoSett
   const insert = async () => {
     try {
       await api.insertText(text);
-      onNotice("Inserción automática no disponible en esta sesión: el texto está copiado, pégalo con Ctrl+V.");
+      onNotice("Texto copiado: pégalo con Ctrl+V. Para insertar directo, usa el modo «Insertar en la ventana activa» con el atajo.");
     } catch (e) {
       onNotice(`No se pudo copiar: ${errMsg(e)}`);
     }
@@ -85,7 +85,7 @@ export default function MainView({ state, status, transcript, onNotice, onGoSett
         />
         <div className="actions">
           <button onClick={() => copy(text)} disabled={!text}>Copiar</button>
-          <button onClick={insert} disabled={!text} title="Copia el texto; la inserción automática no está disponible">
+          <button onClick={insert} disabled={!text} title="Copia el texto; la inserción directa se hace con el atajo y el modo Insertar">
             Insertar
           </button>
           <button onClick={discard} disabled={!text}>Descartar</button>

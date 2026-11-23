@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type RecState = "IDLE" | "RECORDING" | "TRANSCRIBING" | "READY";
-export type OutputMode = "preview" | "clipboard";
+export type OutputMode = "preview" | "clipboard" | "insert";
 
 export interface Settings {
   device_id: string | null;
@@ -39,11 +39,12 @@ export interface Diagnostics {
   clipboard_tool: string | null;
   notifications: boolean;
   auto_insert: boolean;
+  insert_tool: string | null;
 }
 
 export const api = {
   copyText: (text: string) => invoke<void>("copy_text", { text }),
-  insertText: (text: string) => invoke<"unsupported">("insert_text", { text }),
+  insertText: (text: string) => invoke<void>("insert_text", { text }),
   getDiagnostics: () => invoke<Diagnostics>("get_diagnostics"),
   getState: () => invoke<RecState>("get_state"),
   getStatus: () => invoke<Status>("get_status"),

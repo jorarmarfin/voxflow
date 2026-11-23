@@ -32,3 +32,7 @@ Pendientes ⏳:
 1. Sesión **GNOME Wayland**: `voxflow --toggle` desde atajo real, `wl-copy`, notificaciones y comportamiento de `show_main`.
 2. Instalar el `.deb` en VM limpia (dependencias) y probar el AppImage con `--toggle`.
 3. Atajo real: `scripts/install-gnome-shortcut.sh`, pulsar la combinación, dictar en VS Code/navegador y pegar.
+
+## Fase 5 (X11)
+Hechas: Tk Entry, cambio de ventana (negativa), gnome-terminal. Con `PATH`/`LD_LIBRARY_PATH` apuntando a un xdotool local si no está instalado.
+Pendientes ⏳: VS Code (editor y terminal integrada), Chrome/Firefox (campo de texto y contenteditable), apps Electron, Wayland (debe quedar en fallback a portapapeles).

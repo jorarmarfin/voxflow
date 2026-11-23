@@ -1,4 +1,5 @@
 mod audio;
+mod insert;
 mod models;
 mod output;
 mod settings;
@@ -27,6 +28,8 @@ struct App {
     cancel: Mutex<Arc<AtomicBool>>,
     /// Se incrementa al cancelar: descarta resultados de transcripciones obsoletas.
     generation: AtomicU64,
+    /// Ventana activa al empezar a grabar (modo Insert, X11); guarda de seguridad.
+    target: Mutex<Option<String>>,
     /// La operación en curso se inició desde el atajo/bandeja (ventana posiblemente oculta).
     background: AtomicBool,
     downloading: AtomicBool,
@@ -94,7 +97,10 @@ fn start_recording(h: &AppHandle, app: &App, background: bool) -> Result<RecStat
     if !model_installed(app) {
         return Err("Falta el modelo de voz. Descárgalo en Preferencias.".into());
     }
-    let device = app.settings.lock().unwrap().device_id.clone();
+    let (device, mode) = {
+        let st = app.settings.lock().unwrap();
+        (st.device_id.clone(), st.output_mode.clone())
+    };
     let mut m = app.machine.lock().unwrap();
     if !matches!(m.state(), RecState::Idle | RecState::Ready) {
         return Err("Operación en curso; cancela primero.".into());
@@ -104,6 +110,11 @@ fn start_recording(h: &AppHandle, app: &App, background: bool) -> Result<RecStat
     let s = m.start().map_err(|e| e.to_string())?;
     drop(m);
     app.background.store(background, Ordering::SeqCst);
+    *app.target.lock().unwrap() = if mode == settings::OutputMode::Insert {
+        insert::capture_target()
+    } else {
+        None
+    };
     set_state(h, s);
     if background {
         output::notify("Grabando… ejecuta el atajo de nuevo para detener.");
@@ -167,6 +178,7 @@ fn stop_and_transcribe(h: &AppHandle, app: &App) -> Result<RecState, String> {
             return; // cancelada: el estado ya volvió a IDLE
         }
         let background = app.background.load(Ordering::SeqCst);
+        let target = app.target.lock().unwrap().take();
         let mode = app.settings.lock().unwrap().output_mode.clone();
         let mut m = app.machine.lock().unwrap();
         match result {
@@ -175,7 +187,7 @@ fn stop_and_transcribe(h: &AppHandle, app: &App) -> Result<RecState, String> {
                     drop(m);
                     let _ = h2.emit("transcript", &text);
                     set_state(&h2, RecState::Ready);
-                    deliver(&h2, &text, mode, background);
+                    deliver(&h2, &text, mode, background, target);
                 }
             }
             Err(e) => {
@@ -190,8 +202,15 @@ fn stop_and_transcribe(h: &AppHandle, app: &App) -> Result<RecState, String> {
 }
 
 /// Entrega el texto según el modo de salida. Las notificaciones no incluyen el texto.
-fn deliver(h: &AppHandle, text: &str, mode: settings::OutputMode, background: bool) {
+fn deliver(
+    h: &AppHandle,
+    text: &str,
+    mode: settings::OutputMode,
+    background: bool,
+    target: Option<String>,
+) {
     match mode {
+        settings::OutputMode::Insert => insert_flow(h, text, target),
         settings::OutputMode::Clipboard => match output::copy(text) {
             Ok(_) => {
                 notice(h, "Texto copiado al portapapeles. Pega con Ctrl+V.");
@@ -207,6 +226,33 @@ fn deliver(h: &AppHandle, text: &str, mode: settings::OutputMode, background: bo
                 show_main(h);
                 output::notify("Texto listo en VoxFlow: revísalo y copia.");
             }
+        }
+    }
+}
+
+/// Modo Insert: copia, pega solo si la guarda de ventana lo permite y restaura el
+/// portapapeles anterior. Si no se inserta, el texto queda copiado y se avisa.
+fn insert_flow(h: &AppHandle, text: &str, target: Option<String>) {
+    let previous = output::read();
+    if let Err(e) = output::copy(text) {
+        show_main(h);
+        notice(h, e);
+        return;
+    }
+    match insert::paste(target.as_deref()) {
+        Ok(()) => {
+            output::notify("Texto insertado.");
+            notice(h, "Texto insertado en la ventana activa.");
+            // Dar tiempo a la aplicación para leer el portapapeles antes de restaurarlo.
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            if let Some(p) = previous {
+                let _ = output::copy(&p);
+            }
+        }
+        Err(why) => {
+            let msg = format!("No se insertó: {why}. El texto está copiado: pégalo con Ctrl+V.");
+            output::notify(&msg);
+            notice(h, msg);
         }
     }
 }
@@ -235,6 +281,7 @@ fn toggle_recording(app: State<App>, h: AppHandle) -> Result<RecState, String> {
 
 fn do_cancel(h: &AppHandle, app: &App) -> RecState {
     app.generation.fetch_add(1, Ordering::SeqCst);
+    *app.target.lock().unwrap() = None;
     app.cancel.lock().unwrap().store(true, Ordering::SeqCst);
     if let Some(r) = app.recording.lock().unwrap().take() {
         r.cancel();
@@ -278,14 +325,11 @@ fn copy_text(text: String) -> Result<(), String> {
     output::copy(&text).map(|_| ())
 }
 
-/// Inserción segura: sin mecanismo validado, copia y avisa de que hay que pegar a mano.
+/// Botón "Insertar" de la ventana: el foco está en VoxFlow, así que no hay destino seguro;
+/// se copia el texto (la inserción directa se hace con el modo "Insertar" y el atajo).
 #[tauri::command]
-fn insert_text(text: String) -> Result<output::InsertResult, String> {
-    let r = output::insert(&text);
-    if r == output::InsertResult::Unsupported {
-        output::copy(&text)?;
-    }
-    Ok(r)
+fn insert_text(text: String) -> Result<(), String> {
+    output::copy(&text).map(|_| ())
 }
 
 #[tauri::command]
@@ -391,6 +435,7 @@ pub fn run() {
                 engine: Mutex::new(None),
                 cancel: Mutex::new(Arc::new(AtomicBool::new(false))),
                 generation: AtomicU64::new(0),
+                target: Mutex::new(None),
                 background: AtomicBool::new(false),
                 downloading: AtomicBool::new(false),
                 dl_cancel: Arc::new(AtomicBool::new(false)),

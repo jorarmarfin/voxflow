@@ -98,3 +98,21 @@ Aspecto visual de la ventana y comportamiento real de la bandeja en GNOME (requi
 - `build.sh` genera `SHA256SUMS` junto a los paquetes.
 - Informe de aceptación: `docs/ACCEPTANCE.md` (varios criterios parciales por falta de Wayland/VM limpia/audio en español). Sin LICENSE todavía: decisión del propietario.
 - Release 0.1.0 como **pre-release** de prueba; sin datos personales ni secretos.
+
+# Fase 5 — Inserción en el cursor, X11 (2026-11-23)
+
+- **Modo `Insert`** (`OutputMode::Insert`), disponible si `session==X11 && xdotool && xprop`. Solo se activa con el atajo/bandeja: la ventana activa al iniciar la grabación es el destino. Si la activa es la propia VoxFlow (grabación desde el botón) no hay destino y se hace fallback a portapapeles. No es el modo por defecto.
+- **Guarda:** ID de ventana (validado: solo dígitos) al iniciar; al terminar se compara con la activa; ventana distinta, clase de ventana desconocida o fallo de `xdotool` → no se escribe, el texto queda copiado y se notifica el motivo (sin el texto).
+- **Teclas:** `xdotool key --clearmodifiers ctrl+v` (o `ctrl+shift+v` si la clase `WM_CLASS` es de una terminal conocida). Clase vía `xprop` porque `xdotool getwindowclassname` no existe en xdotool 3.20160805 (Ubuntu 24.04); se descubrió en pruebas.
+- **Portapapeles:** se lee el texto previo, se copia la transcripción, se pega y a los 400 ms se restaura. Limitación: no se restauran imágenes/otros formatos.
+- **Descartado:** `xdotool type` (lento y rompe con Unicode/teclados), `ydotool`/`uinput` (privilegios), Wayland (sin API general; pendiente portal libei).
+- `xdotool`/`x11-utils` son `Recommends`, no `Depends`: sin ellos todo sigue funcionando por portapapeles.
+
+## Verificado (X11, release, xdotool 3.20160805 extraído sin sudo)
+- Tk Entry: transcripción insertada y portapapeles restaurado a su valor previo.
+- Cambio de ventana durante la grabación (2 ventanas): **no se insertó en ninguna**; texto copiado; notificación con el motivo.
+- gnome-terminal: clase detectada (`Gnome-terminal`), Ctrl+Shift+V inserta el texto; flujo completo con la app OK.
+- xterm: Ctrl+Shift+V **no** pega por defecto (no es un terminal "estándar" en esto): no se garantiza para xterm.
+- Unit tests: guarda, clases de terminal, ids. `./build.sh` OK. stderr vacío.
+## No verificado
+VS Code (terminal integrada y editor), Chrome/Firefox, apps Electron/Java; campos que bloquean el pegado; Wayland/XWayland; teclados con distribución no estándar (xdotool usa keysyms, no se probó); rendimiento con textos largos.

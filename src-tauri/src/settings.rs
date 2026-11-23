@@ -8,6 +8,8 @@ use std::path::Path;
 pub enum OutputMode {
     Preview,
     Clipboard,
+    /// Pega en la ventana activa al terminar (X11 + xdotool); si no es seguro, copia.
+    Insert,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
