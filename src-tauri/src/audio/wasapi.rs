@@ -3,7 +3,7 @@
 use super::resample::Resampler;
 use super::{Device, MAX_SAMPLES};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{FromSample, SampleFormat, SizedSample};
+use cpal::{FromSample, Sample, SampleFormat, SizedSample};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
