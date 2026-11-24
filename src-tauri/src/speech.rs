@@ -97,8 +97,11 @@ mod tests {
     fn transcribe_fixture_jfk() {
         whisper_rs::install_logging_hooks();
         let dir = std::env::var("VOXFLOW_MODELS_DIR").expect("define VOXFLOW_MODELS_DIR");
-        let engine =
-            WhisperEngine::load(&crate::models::path(std::path::Path::new(&dir), "base")).unwrap();
+        let engine = WhisperEngine::load(&crate::models::path(
+            std::path::Path::new(&dir),
+            &std::env::var("VOXFLOW_TEST_MODEL").unwrap_or_else(|_| "base".into()),
+        ))
+        .unwrap();
         let mut r = hound::WavReader::open("../tests/fixtures/jfk.wav").unwrap();
         let audio: Vec<f32> = r
             .samples::<i16>()

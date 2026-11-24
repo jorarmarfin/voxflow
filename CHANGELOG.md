@@ -8,6 +8,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 - **Registro de diagnóstico** (`voxflow.log`, nunca con audio ni texto dictado): arranque, CPU, micrófono, pasos de grabación/transcripción, errores, pánicos y excepciones nativas de Windows. En Windows también captura stderr (whisper.cpp).
 - Instalador de Windows con **Inno Setup**: se instala en `Program Files`, crea `logs` con permiso de escritura, instala WebView2 si falta.
 
+- **Selector de modelos** (base, small, medium, large-v3-turbo q5/f16, large-v3 q5/f16) con descarga verificada por SHA-256; el log registra tiempo y RTF de cada transcripción.
+
 ### Corregido (hipótesis, por confirmar en Windows)
 - Cierre de la app en Windows al pulsar *Detener*: whisper.cpp se compilaba optimizado para la CPU del runner de CI (posibles instrucciones AVX-512 ilegales en otros PC). Ahora se compila con línea base portable AVX2/FMA/F16C (CI y `build.sh`). Además la transcripción corre en un hilo con 64 MB de pila.
 

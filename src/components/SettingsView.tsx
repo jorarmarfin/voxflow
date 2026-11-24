@@ -8,7 +8,7 @@ interface Props {
   onModelChange: () => void;
 }
 
-const mb = (n: number) => `${(n / 1048576).toFixed(0)} MB`;
+const size = (n: number) => (n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : `${Math.round(n / 1048576)} MB`);
 
 export default function SettingsView({ settings, onSaved, onNotice, onModelChange }: Props) {
   const [draft, setDraft] = useState<Settings>(settings);
@@ -82,12 +82,17 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
 
         <label htmlFor="model">Modelo</label>
         <select id="model" value={draft.model} onChange={(e) => set("model", e.target.value)}>
-          <option value="base">base (~142 MB)</option>
+          {models.length === 0 && <option value={draft.model}>{draft.model}</option>}
+          {models.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label} ({size(m.expected_bytes)}){m.installed ? " ✓ instalado" : ""}
+            </option>
+          ))}
         </select>
         <div className="actions">
           {model?.installed ? (
             <>
-              <span className="muted small">Instalado ({mb(model.size_bytes)}), verificado</span>
+              <span className="muted small">Instalado ({size(model.size_bytes)}), verificado</span>
               <button onClick={remove}>Eliminar</button>
             </>
           ) : downloading ? (
@@ -97,9 +102,14 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
               <button onClick={() => api.cancelDownload()}>Cancelar</button>
             </>
           ) : (
-            <button onClick={download}>Descargar modelo</button>
+            <button onClick={download}>Descargar modelo{model ? ` (${size(model.expected_bytes)})` : ""}</button>
           )}
         </div>
+
+        <p className="muted small">
+          Más grande = más preciso y más lento. Un modelo <em>large</em> necesita varios GB de RAM; los
+          «(q5)» son versiones cuantizadas más livianas. Recuerda pulsar <strong>Guardar</strong> tras elegir uno.
+        </p>
 
         <label htmlFor="lang">Idioma</label>
         <select id="lang" value={draft.language} onChange={(e) => set("language", e.target.value)}>

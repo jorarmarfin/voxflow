@@ -23,8 +23,10 @@ export interface Device {
 }
 export interface ModelStatus {
   id: string;
+  label: string;
   installed: boolean;
   size_bytes: number;
+  expected_bytes: number;
 }
 export interface Progress {
   downloaded: number;

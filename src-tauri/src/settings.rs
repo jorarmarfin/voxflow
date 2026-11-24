@@ -37,12 +37,11 @@ impl Default for Settings {
     }
 }
 
-const MODELS: &[&str] = &["base"];
 const LANGUAGES: &[&str] = &["es", "en"];
 
 impl Settings {
     pub fn validate(&self) -> Result<(), String> {
-        if !MODELS.contains(&self.model.as_str()) {
+        if crate::models::find(&self.model).is_none() {
             return Err(format!("modelo no soportado: {}", self.model));
         }
         if !LANGUAGES.contains(&self.language.as_str()) {

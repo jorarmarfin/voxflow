@@ -8,21 +8,78 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct ModelDef {
     pub id: &'static str,
+    /// Texto para la UI: nombre y calidad aproximada.
+    pub label: &'static str,
     pub sha256: &'static str,
-    pub url: &'static str,
+    /// Tamaño de descarga esperado (bytes), solo informativo.
+    pub size_bytes: u64,
 }
 
-pub const MODELS: &[ModelDef] = &[ModelDef {
-    id: "base",
-    sha256: "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
-    url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
-}];
+impl ModelDef {
+    pub fn url(&self) -> String {
+        format!(
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{}.bin",
+            self.id
+        )
+    }
+}
+
+/// Modelos de whisper.cpp (`ggerganov/whisper.cpp`). Los checksums son los SHA-256 publicados
+/// por Hugging Face (LFS). Más grande = más preciso y más lento; `q5` = cuantizado (más liviano).
+pub const MODELS: &[ModelDef] = &[
+    ModelDef {
+        id: "base",
+        label: "base · rápido, precisión básica",
+        sha256: "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+        size_bytes: 147_951_465,
+    },
+    ModelDef {
+        id: "small",
+        label: "small · equilibrado",
+        sha256: "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
+        size_bytes: 487_601_967,
+    },
+    ModelDef {
+        id: "medium",
+        label: "medium · buena precisión",
+        sha256: "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208",
+        size_bytes: 1_533_763_059,
+    },
+    ModelDef {
+        id: "large-v3-turbo-q5_0",
+        label: "large-v3-turbo (q5) · muy buena precisión, recomendado",
+        sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+        size_bytes: 574_041_195,
+    },
+    ModelDef {
+        id: "large-v3-turbo",
+        label: "large-v3-turbo · muy buena precisión",
+        sha256: "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+        size_bytes: 1_624_555_275,
+    },
+    ModelDef {
+        id: "large-v3-q5_0",
+        label: "large-v3 (q5) · máxima precisión, cuantizado",
+        sha256: "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
+        size_bytes: 1_081_140_203,
+    },
+    ModelDef {
+        id: "large-v3",
+        label: "large-v3 · máxima precisión (usa ~4-5 GB de RAM)",
+        sha256: "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
+        size_bytes: 3_095_033_483,
+    },
+];
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelStatus {
     pub id: String,
+    pub label: String,
     pub installed: bool,
+    /// Tamaño en disco si está instalado.
     pub size_bytes: u64,
+    /// Tamaño de descarga esperado.
+    pub expected_bytes: u64,
 }
 
 pub fn find(id: &str) -> Option<&'static ModelDef> {
@@ -40,8 +97,10 @@ pub fn status(dir: &Path) -> Vec<ModelStatus> {
             let meta = std::fs::metadata(path(dir, m.id)).ok();
             ModelStatus {
                 id: m.id.into(),
+                label: m.label.into(),
                 installed: meta.is_some(),
                 size_bytes: meta.map(|x| x.len()).unwrap_or(0),
+                expected_bytes: m.size_bytes,
             }
         })
         .collect()
@@ -85,7 +144,7 @@ fn fetch(
     cancel: &AtomicBool,
     on_progress: &mut impl FnMut(u64, u64),
 ) -> Result<(), String> {
-    let resp = ureq::get(def.url)
+    let resp = ureq::get(&def.url())
         .call()
         .map_err(|e| format!("Descarga fallida (¿sin conexión?): {e}"))?;
     let total = resp
@@ -148,6 +207,25 @@ mod tests {
         delete(&d, "base").unwrap();
         assert!(!status(&d)[0].installed);
         assert!(delete(&d, "../../x").is_err());
+    }
+
+    #[test]
+    fn tabla_de_modelos_valida() {
+        let mut ids = std::collections::HashSet::new();
+        for m in MODELS {
+            assert!(ids.insert(m.id), "id repetido {}", m.id);
+            assert!(m
+                .id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.'));
+            assert_eq!(m.sha256.len(), 64, "{}", m.id);
+            assert!(m.sha256.bytes().all(|b| b.is_ascii_hexdigit()));
+            assert!(m
+                .url()
+                .starts_with("https://huggingface.co/ggerganov/whisper.cpp/"));
+            assert!(m.size_bytes > 100_000_000);
+        }
+        assert!(find("base").is_some() && find("../x").is_none());
     }
 
     #[test]

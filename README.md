@@ -33,6 +33,8 @@ Instalar el `.deb`: `sudo apt install ./src-tauri/target/release/bundle/deb/VoxF
 
 Preferencias: `~/.config/pe.voxflow.app/settings.json` (sin audio ni texto). Modelos instalados desde la app: `~/.local/share/pe.voxflow.app/models/`.
 
+**Modelos:** Preferencias permite elegir entre `base` (142 MB), `small`, `medium`, `large-v3-turbo` (q5, recomendado en calidad) y `large-v3` (hasta 3 GB). Más grande = más preciso pero **mucho más lento en CPU** (ver `docs/DECISIONS.md`, medidas). Cada descarga se verifica con SHA-256; `scripts/fetch-model.sh <id>` hace lo mismo desde la terminal.
+
 **Primer uso:** Preferencias → elegir micrófono → *Descargar modelo* (única conexión de red, con SHA-256) → Guardar → pestaña Dictado → *Hablar con VoxFlow* → *Detener* → revisar/editar → *Copiar* y pegar con Ctrl+V.
 
 **Pruebas con hardware/modelo** (ignoradas por defecto): `cd src-tauri && VOXFLOW_MODELS_DIR=../models cargo test --lib -- --ignored --nocapture`

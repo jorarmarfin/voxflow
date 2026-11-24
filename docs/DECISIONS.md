@@ -140,3 +140,18 @@ Ver estado de CI y pruebas pendientes en `docs/TEST_PLAN.md`. Todo lo que depend
 - **Log:** `diag_log.rs`, archivo `voxflow.log` (rotación 1 MB). Windows: `<instalación>\logs` (el instalador da `users-modify`) con respaldo en `%LOCALAPPDATA%`. Redirige stderr (Win32 + CRT) al archivo y registra excepciones nativas con `SetUnhandledExceptionFilter`; el hook de pánico registra ubicación y solo mensajes estáticos. **Privacidad:** sin audio ni texto; solo conteos (muestras, nº de caracteres), estados y errores propios. Una línea de arranque muestra los flags de CPU (`avx2`, `avx512f`…) para confirmar o descartar la hipótesis.
 - **Instalador:** Inno Setup (`installer/voxflow.iss`) sustituye a NSIS. `PrivilegesRequired=admin`, `{autopf}\VoxFlow`, WebView2 por descarga del bootstrapper oficial (mejor esfuerzo), español/inglés. La app se compila con `tauri build --no-bundle` (un solo `voxflow.exe`). Riesgo: requiere el runtime de VC++ (suele estar presente); si falta, añadir `vc_redist` al instalador.
 - **Sin verificar:** que el cierre desaparezca. Esta versión está pensada para **producir evidencia** (el log) si persiste.
+
+# Modelos más grandes (2026-11-23)
+
+A petición del propietario (prioriza precisión sobre velocidad): tabla de modelos en `models.rs` (id, etiqueta, SHA-256 y tamaño; checksums de Hugging Face/LFS) y selector en Preferencias. `Settings.validate` solo admite ids de la tabla (sin rutas arbitrarias). Cada transcripción registra en el log tiempo y RTF (sin texto).
+
+**Medido** (Linux, Intel i7-4770K 4 núcleos/8 hilos, AVX2, **CPU sin GPU**, `jfk.wav` 11 s en inglés, incluye carga del modelo; 1 ejecución cada uno):
+| Modelo | Tiempo | Resultado |
+|---|---|---|
+| base | 4,5 s | correcto |
+| small | 10,8 s | correcto |
+| large-v3-turbo (q5) | 41,9 s | correcto |
+| medium, large-v3 (q5/f16) | no medidos | |
+
+**Conclusión:** en CPU, los modelos *large* son ~10 veces más lentos que `base`. El codificador de whisper procesa siempre ventanas de 30 s, así que un dictado corto cuesta casi lo mismo que uno largo. Para usar *large* con fluidez hace falta **GPU** (CUDA/Vulkan/Metal), que el build actual **no** habilita (solo CPU). Pendiente decidir: Vulkan (cualquier GPU en Windows/Linux) o CUDA (solo NVIDIA, instalador más pesado).
+**Sin verificar:** calidad con español peruano/tecnicismos por modelo; rendimiento en la PC Windows del propietario.
