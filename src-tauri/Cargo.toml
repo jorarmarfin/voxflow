@@ -28,3 +28,10 @@ hound = "3.5"
 [profile.release]
 strip = true
 lto = "thin"
+
+[target."cfg(windows)".dependencies]
+arboard = { version = "3", default-features = false }
+cpal = "0.18"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-notification = "2"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }

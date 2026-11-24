@@ -1,43 +1,9 @@
-//! TextOutput: copiar al portapapeles, notificaciones y (no) inserción.
-//!
-//! - Portapapeles por herramienta del sistema, con el texto por stdin (nunca por argv):
-//!   Wayland → `wl-copy` (funciona en GNOME, que no soporta wlr-data-control);
-//!   X11 → `xclip` o `xsel`.
-//! - La inserción en la ventana activa vive en `insert.rs` (solo X11 + xdotool, con guarda).
-//! - Las notificaciones (`notify-send`) nunca incluyen texto dictado.
-use serde::Serialize;
+//! Portapapeles y notificaciones en Linux (herramientas del sistema; el texto va por stdin, nunca por argv).
+//! Wayland → `wl-copy` (funciona en GNOME, que no soporta wlr-data-control); X11 → `xclip`/`xsel`.
+//! Las notificaciones (`notify-send`) nunca incluyen texto dictado.
+use super::{session, Session};
 use std::io::Write;
 use std::process::{Command, Stdio};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Session {
-    Wayland,
-    X11,
-    Unknown,
-}
-
-pub fn detect_session(
-    session_type: Option<&str>,
-    wayland_display: Option<&str>,
-    display: Option<&str>,
-) -> Session {
-    match session_type {
-        Some("wayland") => Session::Wayland,
-        Some("x11") => Session::X11,
-        _ if wayland_display.is_some_and(|v| !v.is_empty()) => Session::Wayland,
-        _ if display.is_some_and(|v| !v.is_empty()) => Session::X11,
-        _ => Session::Unknown,
-    }
-}
-
-pub fn session() -> Session {
-    detect_session(
-        std::env::var("XDG_SESSION_TYPE").ok().as_deref(),
-        std::env::var("WAYLAND_DISPLAY").ok().as_deref(),
-        std::env::var("DISPLAY").ok().as_deref(),
-    )
-}
 
 pub(crate) fn have(cmd: &str) -> bool {
     std::env::var_os("PATH")
@@ -127,28 +93,8 @@ pub fn notify(body: &str) {
         .status();
 }
 
-#[derive(Serialize)]
-pub struct Diagnostics {
-    pub session: Session,
-    pub clipboard_tool: Option<&'static str>,
-    pub notifications: bool,
-    pub auto_insert: bool,
-    pub insert_tool: Option<&'static str>,
-}
-
-pub fn diagnostics() -> Diagnostics {
-    Diagnostics {
-        session: session(),
-        clipboard_tool: clipboard_tool(),
-        notifications: have("notify-send"),
-        auto_insert: crate::insert::available(),
-        insert_tool: crate::insert::available().then_some("xdotool"),
-    }
-}
-
-/// ¿Alguno de los argumentos pide alternar la grabación?
-pub fn wants_toggle(args: &[String]) -> bool {
-    args.iter().any(|a| a == "--toggle")
+pub fn notifications_available() -> bool {
+    have("notify-send")
 }
 
 #[cfg(test)]
@@ -156,35 +102,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn detecta_sesion() {
-        assert_eq!(
-            detect_session(Some("wayland"), None, None),
-            Session::Wayland
-        );
-        assert_eq!(
-            detect_session(Some("x11"), Some("wayland-0"), Some(":0")),
-            Session::X11
-        );
-        assert_eq!(
-            detect_session(None, Some("wayland-0"), None),
-            Session::Wayland
-        );
-        assert_eq!(detect_session(Some("tty"), None, Some(":0")), Session::X11);
-        assert_eq!(detect_session(None, Some(""), Some("")), Session::Unknown);
-    }
-
-    #[test]
     fn orden_de_herramientas() {
         assert_eq!(clipboard_candidates(Session::Wayland)[0].0, "wl-copy");
         assert_eq!(clipboard_candidates(Session::X11)[0].0, "xclip");
-    }
-
-    #[test]
-    fn toggle_en_args() {
-        let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert!(wants_toggle(&a(&["voxflow", "--toggle"])));
-        assert!(!wants_toggle(&a(&["voxflow"])));
-        assert!(!wants_toggle(&a(&["voxflow", "--toggled"])));
     }
 
     /// Requiere sesión gráfica y xclip/wl-copy: `cargo test -- --ignored`

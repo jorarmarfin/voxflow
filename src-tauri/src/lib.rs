@@ -313,8 +313,29 @@ fn get_settings(app: State<App>) -> Settings {
     app.settings.lock().unwrap().clone()
 }
 
+/// Registra el atajo global (solo Windows). En Linux el atajo lo gestiona el escritorio.
+#[cfg(windows)]
+fn apply_hotkey(h: &AppHandle, accel: &str) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+    let gs = h.global_shortcut();
+    let _ = gs.unregister_all();
+    gs.on_shortcut(accel, |app, _shortcut, ev| {
+        if ev.state() == ShortcutState::Pressed {
+            background_toggle(app);
+        }
+    })
+    .map_err(|e| format!("Atajo no válido o en uso por otra aplicación ({accel}): {e}"))
+}
+
 #[tauri::command]
-fn save_settings(app: State<App>, settings: Settings) -> Result<Settings, String> {
+fn save_settings(app: State<App>, h: AppHandle, settings: Settings) -> Result<Settings, String> {
+    settings.validate()?;
+    #[cfg(windows)]
+    if settings.hotkey != app.settings.lock().unwrap().hotkey {
+        apply_hotkey(&h, &settings.hotkey)?;
+    }
+    #[cfg(not(windows))]
+    let _ = &h;
     settings.save(&app.settings_path)?;
     *app.settings.lock().unwrap() = settings.clone();
     Ok(settings)
@@ -408,7 +429,7 @@ pub fn run() {
     // whisper.cpp imprime tokens/segmentos en stderr: se redirige al crate `log`,
     // que no tiene logger instalado, así que nada de la transcripción se registra.
     whisper_rs::install_logging_hooks();
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // Debe ser el primer plugin: una 2.ª ejecución (`voxflow --toggle`) reenvía sus
         // argumentos a la instancia en marcha y termina.
         .plugin(tauri_plugin_single_instance::init(|h, args, _cwd| {
@@ -417,12 +438,24 @@ pub fn run() {
             } else {
                 show_main(h);
             }
-        }))
+        }));
+    #[cfg(windows)]
+    let builder = builder
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init());
+    builder
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             let settings_path = dir.join("settings.json");
             let settings = Settings::load(&settings_path);
             let start_minimized = settings.start_minimized;
+            #[cfg(windows)]
+            {
+                output::init(app.handle().clone());
+                if let Err(e) = apply_hotkey(app.handle(), &settings.hotkey) {
+                    output::notify(&e);
+                }
+            }
             let models_dir = std::env::var_os("VOXFLOW_MODELS_DIR")
                 .map(PathBuf::from)
                 .unwrap_or(app.path().app_data_dir()?.join("models"));

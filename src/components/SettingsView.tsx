@@ -112,9 +112,23 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
           <option value="preview">Vista previa antes de copiar</option>
           <option value="clipboard">Copiar directo al portapapeles</option>
           <option value="insert" disabled={!diag?.auto_insert}>
-            Insertar en la ventana activa (atajo; X11 + xdotool)
+            Insertar en la ventana activa (con el atajo)
           </option>
         </select>
+
+        {diag?.session === "windows" && (
+          <>
+            <label htmlFor="hotkey">Atajo global</label>
+            <input
+              id="hotkey"
+              type="text"
+              value={draft.hotkey}
+              onChange={(e) => set("hotkey", e.target.value)}
+              placeholder="Ctrl+Alt+V"
+              maxLength={40}
+            />
+          </>
+        )}
 
         <label className="check">
           <input type="checkbox" checked={draft.start_minimized} onChange={(e) => set("start_minimized", e.target.checked)} />
@@ -130,22 +144,32 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
           La única conexión de red es la descarga explícita del modelo.
         </p>
         <h2>Atajo de teclado</h2>
-        <p className="muted small">
-          Asigna en tu escritorio un atajo que ejecute <code>voxflow --toggle</code>: la primera vez empieza a
-          grabar y la siguiente detiene y transcribe. En GNOME: <code>scripts/install-gnome-shortcut.sh</code>
-          (ver README).
-        </p>
+        {diag?.session === "windows" ? (
+          <p className="muted small">
+            Pulsa el atajo global ({draft.hotkey}) desde cualquier aplicación: la primera vez empieza a grabar y la
+            siguiente detiene y transcribe. También funciona <code>voxflow.exe --toggle</code>.
+          </p>
+        ) : (
+          <p className="muted small">
+            Asigna en tu escritorio un atajo que ejecute <code>voxflow --toggle</code>: la primera vez empieza a
+            grabar y la siguiente detiene y transcribe. En GNOME: <code>scripts/install-gnome-shortcut.sh</code>
+            (ver README).
+          </p>
+        )}
         <h2>Diagnóstico</h2>
         {diag && (
           <ul className="muted small">
-            <li>Sesión: {diag.session === "wayland" ? "Wayland" : diag.session === "x11" ? "X11" : "desconocida"}</li>
-            <li>Portapapeles: {diag.clipboard_tool ?? "no disponible (instala wl-clipboard o xclip)"}</li>
-            <li>Notificaciones: {diag.notifications ? "notify-send" : "no disponible (instala libnotify-bin)"}</li>
+            <li>
+              Sistema:{" "}
+              {{ wayland: "Linux (Wayland)", x11: "Linux (X11)", windows: "Windows", unknown: "desconocido" }[diag.session]}
+            </li>
+            <li>Portapapeles: {diag.clipboard_tool ?? "no disponible (Linux: instala wl-clipboard o xclip)"}</li>
+            <li>Notificaciones: {diag.notifications ? "notify-send" : "no disponible (Linux: instala libnotify-bin)"}</li>
             <li>
               Inserción en el cursor:{" "}
               {diag.auto_insert
                 ? `disponible (${diag.insert_tool}); solo con el atajo, pega en la ventana que tenías activa al empezar`
-                : "no disponible (requiere sesión X11 y xdotool); el texto se copia y se pega con Ctrl+V"}
+                : "no disponible (Linux: requiere X11, xdotool y xprop); el texto se copia y se pega con Ctrl+V"}
             </li>
           </ul>
         )}

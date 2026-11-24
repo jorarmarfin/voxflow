@@ -1,20 +1,10 @@
 //! AudioCapture: captura del micrófono vía `pw-record` (PipeWire) como proceso hijo,
 //! con argumentos fijos (sin shell). El audio PCM 16 kHz mono s16 se guarda solo en memoria.
-use serde::Serialize;
+use super::{Device, MAX_SAMPLES};
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-
-pub const SAMPLE_RATE: usize = 16_000;
-/// Tope de seguridad de memoria: 5 minutos de audio.
-const MAX_SAMPLES: usize = SAMPLE_RATE * 300;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Device {
-    pub id: String,
-    pub label: String,
-}
 
 pub fn available() -> bool {
     Command::new("pw-record")

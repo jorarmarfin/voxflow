@@ -20,6 +20,8 @@ pub struct Settings {
     pub language: String,
     pub output_mode: OutputMode,
     pub start_minimized: bool,
+    /// Atajo global (solo Windows; en Linux se usa `voxflow --toggle` desde el escritorio).
+    pub hotkey: String,
 }
 
 impl Default for Settings {
@@ -30,6 +32,7 @@ impl Default for Settings {
             language: "es".into(),
             output_mode: OutputMode::Preview,
             start_minimized: false,
+            hotkey: "Ctrl+Alt+V".into(),
         }
     }
 }
@@ -44,6 +47,13 @@ impl Settings {
         }
         if !LANGUAGES.contains(&self.language.as_str()) {
             return Err(format!("idioma no soportado: {}", self.language));
+        }
+        let ok_chars = self
+            .hotkey
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "+ _".contains(c));
+        if self.hotkey.trim().is_empty() || self.hotkey.len() > 40 || !ok_chars {
+            return Err("atajo no válido (ejemplo: Ctrl+Alt+V)".into());
         }
         Ok(())
     }
@@ -98,6 +108,20 @@ mod tests {
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
         std::fs::write(&p, "{no es json").unwrap();
         assert_eq!(Settings::load(&p), Settings::default());
+    }
+
+    #[test]
+    fn rechaza_atajo_invalido() {
+        let s = Settings {
+            hotkey: "Ctrl+Alt+V; rm".into(),
+            ..Default::default()
+        };
+        assert!(s.validate().is_err());
+        let s = Settings {
+            hotkey: "".into(),
+            ..Default::default()
+        };
+        assert!(s.validate().is_err());
     }
 
     #[test]

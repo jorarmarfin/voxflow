@@ -15,7 +15,7 @@ vi.mock("./lib/api", async (orig) => {
       toggleRecording: vi.fn(),
       cancel: vi.fn(),
       getSettings: vi.fn().mockResolvedValue({
-        device_id: null, model: "base", language: "es", output_mode: "preview", start_minimized: false,
+        device_id: null, model: "base", language: "es", output_mode: "preview", start_minimized: false, hotkey: "Ctrl+Alt+V",
       }),
       saveSettings: vi.fn(),
       onState: vi.fn().mockResolvedValue(() => {}),

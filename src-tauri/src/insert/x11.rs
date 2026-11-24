@@ -19,6 +19,10 @@ fn xdo(args: &[&str]) -> Option<String> {
         .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
+pub fn tool() -> Option<&'static str> {
+    available().then_some("xdotool")
+}
+
 /// ¿Se puede insertar en esta sesión? (X11, `xdotool` y `xprop` instalados)
 pub fn available() -> bool {
     session() == Session::X11 && have("xdotool") && have("xprop")

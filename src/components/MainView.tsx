@@ -45,7 +45,7 @@ export default function MainView({ state, status, transcript, onNotice, onGoSett
   };
 
   const blocker = !status.audio_ok
-    ? "No se encontró pw-record (instala pipewire-bin) para capturar audio."
+    ? "No se encontró un micrófono o el sistema de captura (Linux: instala pipewire-bin; Windows: revisa Privacidad → Micrófono)."
     : !status.model_installed
       ? "Falta el modelo de voz."
       : null;

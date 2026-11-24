@@ -10,6 +10,7 @@ export interface Settings {
   language: string;
   output_mode: OutputMode;
   start_minimized: boolean;
+  hotkey: string;
 }
 
 export interface Status {
@@ -35,7 +36,7 @@ export interface DownloadDone {
 }
 
 export interface Diagnostics {
-  session: "wayland" | "x11" | "unknown";
+  session: "wayland" | "x11" | "windows" | "unknown";
   clipboard_tool: string | null;
   notifications: boolean;
   auto_insert: boolean;
