@@ -29,7 +29,7 @@ sudo apt install xdotool x11-utils wl-clipboard xclip libnotify-bin pulseaudio-u
 scripts/fetch-model.sh base        # descarga explícita del modelo (~142 MB) con SHA-256
 scripts/record-test.sh 8           # graba 8 s del micrófono a tests/fixtures/mic-es.wav
 ```
-Instalar el `.deb`: `sudo apt install ./src-tauri/target/release/bundle/deb/VoxFlow_0.1.0_amd64.deb`. El `.AppImage` se ejecuta con `chmod +x` y doble clic. Convertir audio: `ffmpeg -i in.mp3 -ar 16000 -ac 1 -c:a pcm_s16le out.wav`.
+Instalar el `.deb`: `sudo apt install ./src-tauri/target/release/bundle/deb/VoxFlow_0.2.0_amd64.deb`. El `.AppImage` se ejecuta con `chmod +x` y doble clic. Convertir audio: `ffmpeg -i in.mp3 -ar 16000 -ac 1 -c:a pcm_s16le out.wav`.
 
 Preferencias: `~/.config/pe.voxflow.app/settings.json` (sin audio ni texto). Modelos instalados desde la app: `~/.local/share/pe.voxflow.app/models/`.
 
@@ -46,7 +46,7 @@ No hay CI/CD: todo se compila y ejecuta en local con `build.sh` y `run.sh`.
 **GNOME** (script que solo añade/quita su propia entrada y conserva tus otros atajos):
 ```bash
 scripts/install-gnome-shortcut.sh                          # Super+Alt+V → voxflow --toggle (.deb instalado)
-scripts/install-gnome-shortcut.sh --binding '<Ctrl><Alt>d' --command /ruta/VoxFlow_0.1.0_amd64.AppImage
+scripts/install-gnome-shortcut.sh --binding '<Ctrl><Alt>d' --command /ruta/VoxFlow_0.2.0_amd64.AppImage
 scripts/install-gnome-shortcut.sh --remove
 ```
 Manual: Ajustes → Teclado → Atajos personalizados → comando `voxflow --toggle`. En KDE: Preferencias → Atajos → Comando personalizado con el mismo comando.

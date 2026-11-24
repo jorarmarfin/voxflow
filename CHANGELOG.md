@@ -2,7 +2,7 @@
 
 Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versionado semántico.
 
-## [Sin publicar]
+## [0.2.0] — 2026-11-23 (pre-release)
 
 ### Añadido
 - Modo de salida **Insertar en la ventana activa** (X11 + `xdotool`/`xprop`) con guarda de ventana, detección de terminales (Ctrl+Shift+V) y restauración del portapapeles de texto. `.deb`: `Recommends: xdotool, x11-utils`.

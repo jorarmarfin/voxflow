@@ -17,5 +17,6 @@ cargo test --manifest-path src-tauri/Cargo.toml
 [ "${1:-}" = "--check" ] && { echo "OK (checks)"; exit 0; }
 pnpm tauri build
 B=src-tauri/target/release/bundle
-( cd "$B" && sha256sum deb/*.deb appimage/*.AppImage | sed 's# [^ ]*/# #' > SHA256SUMS && cat SHA256SUMS )
+V=$(node -p "require('./package.json').version")
+( cd "$B" && sha256sum deb/*_${V}_*.deb appimage/*_${V}_*.AppImage | sed 's# [^ ]*/# #' > SHA256SUMS && cat SHA256SUMS )
 echo "Paquetes y SHA256SUMS en: $B/"
