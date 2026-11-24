@@ -63,5 +63,8 @@ Evita usarlo con campos de contraseña o ventanas sensibles: VoxFlow no puede sa
 - Opcional: `rm -r ~/.config/pe.voxflow.app ~/.local/share/pe.voxflow.app` (preferencias y modelos).
 - Desarrollo: borra la carpeta del repo (`models/`, `target/`, `node_modules/`).
 
+## Licencia
+[MIT](LICENSE) © 2026 Luis Mayta. Licencias de dependencias y modelos: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+
 ## Marca
 Logo y línea gráfica en `assets/brand/` (paleta: #1A0F6B, #2E3BE6, #00D4FF, #00E6C3; tipografías Montserrat/Inter).

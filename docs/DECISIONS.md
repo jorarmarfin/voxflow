@@ -116,3 +116,6 @@ Aspecto visual de la ventana y comportamiento real de la bandeja en GNOME (requi
 - Unit tests: guarda, clases de terminal, ids. `./build.sh` OK. stderr vacío.
 ## No verificado
 VS Code (terminal integrada y editor), Chrome/Firefox, apps Electron/Java; campos que bloquean el pegado; Wayland/XWayland; teclados con distribución no estándar (xdotool usa keysyms, no se probó); rendimiento con textos largos.
+
+# Licencia (2026-11-23)
+MIT, a petición del propietario (repositorio público). Revisión de dependencias con `cargo metadata`/`pnpm licenses`: sin GPL/AGPL; MPL-2.0 en 5 crates (sin modificar) y `r-efi` bajo MIT. Resumen en `THIRD_PARTY_LICENSES.md`. Los releases v0.1.0/v0.2.0 ya publicados no incluían el archivo LICENSE; se aplica al repositorio desde este commit y a los siguientes releases.

@@ -3,6 +3,7 @@ name = "voxflow"
 version = "0.2.0"
 edition = "2021"
 description = "Dictado local en español para Linux"
+license = "MIT"
 publish = false
 
 [build-dependencies]

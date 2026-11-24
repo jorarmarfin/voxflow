@@ -21,6 +21,6 @@ Audio solo en memoria; nada de audio ni texto en disco ni en logs; sin telemetr�
 - Probado en Ubuntu 24.04 **X11**. **Wayland: sin validar**; el atajo lo gestiona el escritorio.
 - **Sin inserción automática**: el texto queda en el portapapeles (Ctrl+V).
 - Requiere PipeWire/PulseAudio, `wl-clipboard` o `xclip`, `libnotify-bin`.
-- Licencias: whisper.cpp (MIT), modelo Whisper de OpenAI (MIT), whisper-rs (Unlicense). Licencia propia del proyecto pendiente: **sin LICENSE aún**, así que por defecto no se concede permiso de reutilización.
+- Licencias: whisper.cpp (MIT), modelo Whisper de OpenAI (MIT), whisper-rs (Unlicense). Licencia del proyecto: MIT (desde el commit posterior a este release).
 
 Ver [CHANGELOG](../CHANGELOG.md) y [DECISIONS](DECISIONS.md).
