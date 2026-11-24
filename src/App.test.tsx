@@ -11,7 +11,7 @@ vi.mock("./lib/api", async (orig) => {
       dismiss: vi.fn(),
       copyText: vi.fn(),
       insertText: vi.fn(),
-      getDiagnostics: vi.fn().mockResolvedValue({ session: "x11", clipboard_tool: "xclip", notifications: true, auto_insert: false, insert_tool: null }),
+      getDiagnostics: vi.fn().mockResolvedValue({ session: "x11", clipboard_tool: "xclip", notifications: true, auto_insert: false, insert_tool: null, log_path: null }),
       toggleRecording: vi.fn(),
       cancel: vi.fn(),
       getSettings: vi.fn().mockResolvedValue({

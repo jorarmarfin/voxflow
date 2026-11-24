@@ -41,6 +41,7 @@ export interface Diagnostics {
   notifications: boolean;
   auto_insert: boolean;
   insert_tool: string | null;
+  log_path: string | null;
 }
 
 export const api = {

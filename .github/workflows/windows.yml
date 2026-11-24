@@ -20,6 +20,15 @@ jobs:
     env:
       # bindgen (whisper-rs-sys) necesita libclang; viene con LLVM en el runner.
       LIBCLANG_PATH: C:\Program Files\LLVM\bin
+      # whisper.cpp portable: SIN optimizar para la CPU del runner (GGML_NATIVE) para no
+      # emitir AVX-512 u otras instrucciones que otros PC no tengan (cierre por "instrucción
+      # ilegal"). Línea base: AVX2 + FMA + F16C. whisper-rs-sys reenvía las variables GGML_* a CMake.
+      GGML_NATIVE: "OFF"
+      GGML_AVX: "ON"
+      GGML_AVX2: "ON"
+      GGML_FMA: "ON"
+      GGML_F16C: "ON"
+      GGML_AVX512: "OFF"
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +46,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # Cambiar la clave invalida la caché (whisper.cpp se recompila con los flags de arriba).
+          key: ggml-portable-1
 
       - name: Dependencias del frontend
         run: pnpm install --frozen-lockfile
@@ -49,13 +60,21 @@ jobs:
       - name: Tests de Rust
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
-      - name: Instalador de Windows (NSIS)
-        run: pnpm tauri build --bundles nsis
+      - name: Compilar la aplicación (sin empaquetar)
+        run: pnpm tauri build --no-bundle
+
+      - name: Instalador de Windows (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $v = node -p "require('./package.json').version"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$v" installer\voxflow.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC falló ($LASTEXITCODE)" }
 
       - name: Checksums
         shell: pwsh
         run: |
-          $dir = "src-tauri/target/release/bundle/nsis"
+          $dir = "src-tauri/target/release/bundle/inno"
           Get-ChildItem $dir -Filter *-setup.exe | ForEach-Object {
             $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$h  $($_.Name)" | Out-File -Append -Encoding ascii "$dir/SHA256SUMS-windows"
@@ -66,8 +85,8 @@ jobs:
         with:
           name: voxflow-windows
           path: |
-            src-tauri/target/release/bundle/nsis/*-setup.exe
-            src-tauri/target/release/bundle/nsis/SHA256SUMS-windows
+            src-tauri/target/release/bundle/inno/*-setup.exe
+            src-tauri/target/release/bundle/inno/SHA256SUMS-windows
           if-no-files-found: error
 
   attach:

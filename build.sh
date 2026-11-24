@@ -8,6 +8,8 @@ export LIBCLANG_PATH="${LIBCLANG_PATH:-/usr/lib/llvm-18/lib}"
 export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$HOME=/home/user --remap-path-prefix=$PWD=/src --remap-path-prefix=$HOME/.cargo=/cargo"
 export CFLAGS="${CFLAGS:-} -ffile-prefix-map=$PWD=/src"
 export CXXFLAGS="${CXXFLAGS:-} -ffile-prefix-map=$PWD=/src"
+# whisper.cpp portable (paquetes que se distribuyen): línea base AVX2/FMA/F16C, sin optimizar para esta CPU.
+export GGML_NATIVE=OFF GGML_AVX=ON GGML_AVX2=ON GGML_FMA=ON GGML_F16C=ON GGML_AVX512=OFF
 [ -d node_modules ] || pnpm install --frozen-lockfile
 pnpm lint
 pnpm test

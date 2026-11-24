@@ -45,3 +45,8 @@ Manuales ⏳ en un PC con Windows 10/11:
 3. Modo *Insertar* en Bloc de notas, VS Code, Chrome, Windows Terminal; cambio de ventana durante la grabación (no debe insertar); ventana como administrador (solo copia).
 4. Notificaciones (sin texto dictado), cambio de atajo, atajo en uso por otra app.
 5. Español peruano y tecnicismos; rendimiento CPU (RTF).
+
+## 0.3.1 (Windows): diagnóstico del cierre al detener
+1. Instalar el `.exe` de Inno Setup; comprobar que existe `C:\Program Files\VoxFlow\logs\voxflow.log`.
+2. Dictar y pulsar *Detener*. Si se cierra: abrir el log y buscar `PANIC`, `EXCEPCION NATIVA` y la última línea de `grabación…`/`motor…`/`transcripción…`; adjuntarlo (no contiene texto dictado).
+3. Revisar la línea `CPU: avx2=… avx512f=…`.

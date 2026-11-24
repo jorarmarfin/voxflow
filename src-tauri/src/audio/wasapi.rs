@@ -91,6 +91,11 @@ pub fn start(device: Option<&str>) -> Result<Recording, String> {
                 .default_input_config()
                 .map_err(|e| format!("No se pudo leer la configuración del micrófono: {e}"))?;
             let fmt = cfg.sample_format();
+            crate::diag_log::log(&format!(
+                "audio: {} Hz, {} canales, formato {fmt}",
+                cfg.sample_rate(),
+                cfg.channels()
+            ));
             let config = cfg.config();
             let stream = match fmt {
                 SampleFormat::F32 => build::<f32>(&dev, config, buf2.clone())?,

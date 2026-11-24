@@ -1,4 +1,5 @@
 mod audio;
+mod diag_log;
 mod insert;
 mod models;
 mod output;
@@ -110,6 +111,7 @@ fn start_recording(h: &AppHandle, app: &App, background: bool) -> Result<RecStat
     let s = m.start().map_err(|e| e.to_string())?;
     drop(m);
     app.background.store(background, Ordering::SeqCst);
+    diag_log::log("grabación iniciada");
     *app.target.lock().unwrap() = if mode == settings::OutputMode::Insert {
         insert::capture_target()
     } else {
@@ -144,6 +146,11 @@ fn stop_and_transcribe(h: &AppHandle, app: &App) -> Result<RecState, String> {
             }
         }
     };
+    diag_log::log(&format!(
+        "grabación detenida: {} muestras (~{:.1} s)",
+        samples.len(),
+        samples.len() as f32 / 16_000.0
+    ));
     set_state(h, RecState::Transcribing);
     if app.background.load(Ordering::SeqCst) {
         output::notify("Transcribiendo…");
@@ -153,51 +160,72 @@ fn stop_and_transcribe(h: &AppHandle, app: &App) -> Result<RecState, String> {
     *app.cancel.lock().unwrap() = flag.clone();
     let gen = app.generation.load(Ordering::SeqCst);
     let h2 = h.clone();
-    std::thread::spawn(move || {
-        let app = h2.state::<App>();
-        let (model, language) = {
-            let s = app.settings.lock().unwrap();
-            (s.model.clone(), s.language.clone())
-        };
-        let result = (|| {
-            let engine = {
-                let mut slot = app.engine.lock().unwrap();
-                match slot.as_ref() {
-                    Some((id, e)) if *id == model => e.clone(),
-                    _ => {
-                        let e =
-                            Arc::new(WhisperEngine::load(&models::path(&app.models_dir, &model))?);
-                        *slot = Some((model.clone(), e.clone()));
-                        e
+    // Pila grande: la inferencia de ggml puede usar mucha pila (hilo por defecto en Windows: 2 MB).
+    let spawned = std::thread::Builder::new()
+        .name("transcribe".into())
+        .stack_size(64 * 1024 * 1024)
+        .spawn(move || {
+            let app = h2.state::<App>();
+            let (model, language) = {
+                let s = app.settings.lock().unwrap();
+                (s.model.clone(), s.language.clone())
+            };
+            let result = (|| {
+                let engine = {
+                    let mut slot = app.engine.lock().unwrap();
+                    match slot.as_ref() {
+                        Some((id, e)) if *id == model => e.clone(),
+                        _ => {
+                            diag_log::log("motor: cargando modelo");
+                            let e = Arc::new(WhisperEngine::load(&models::path(
+                                &app.models_dir,
+                                &model,
+                            ))?);
+                            diag_log::log("motor: modelo cargado");
+                            *slot = Some((model.clone(), e.clone()));
+                            e
+                        }
+                    }
+                };
+                diag_log::log("transcripción: inicio");
+                engine.transcribe(&samples, &language, flag)
+            })();
+            match &result {
+                Ok(t) => diag_log::log(&format!(
+                    "transcripción: fin ({} caracteres)",
+                    t.chars().count()
+                )),
+                Err(e) => diag_log::log(&format!("transcripción: error: {e}")),
+            }
+            if app.generation.load(Ordering::SeqCst) != gen {
+                return; // cancelada: el estado ya volvió a IDLE
+            }
+            let background = app.background.load(Ordering::SeqCst);
+            let target = app.target.lock().unwrap().take();
+            let mode = app.settings.lock().unwrap().output_mode.clone();
+            let mut m = app.machine.lock().unwrap();
+            match result {
+                Ok(text) => {
+                    if m.finish().is_ok() {
+                        drop(m);
+                        let _ = h2.emit("transcript", &text);
+                        set_state(&h2, RecState::Ready);
+                        deliver(&h2, &text, mode, background, target);
                     }
                 }
-            };
-            engine.transcribe(&samples, &language, flag)
-        })();
-        if app.generation.load(Ordering::SeqCst) != gen {
-            return; // cancelada: el estado ya volvió a IDLE
-        }
-        let background = app.background.load(Ordering::SeqCst);
-        let target = app.target.lock().unwrap().take();
-        let mode = app.settings.lock().unwrap().output_mode.clone();
-        let mut m = app.machine.lock().unwrap();
-        match result {
-            Ok(text) => {
-                if m.finish().is_ok() {
+                Err(e) => {
+                    let st = m.cancel();
                     drop(m);
-                    let _ = h2.emit("transcript", &text);
-                    set_state(&h2, RecState::Ready);
-                    deliver(&h2, &text, mode, background, target);
+                    set_state(&h2, st);
+                    fail(&h2, e, background);
                 }
             }
-            Err(e) => {
-                let st = m.cancel();
-                drop(m);
-                set_state(&h2, st);
-                fail(&h2, e, background);
-            }
-        }
-    });
+        });
+    if let Err(e) = spawned {
+        let st = app.machine.lock().unwrap().cancel();
+        set_state(h, st);
+        return Err(format!("No se pudo iniciar la transcripción: {e}"));
+    }
     Ok(RecState::Transcribing)
 }
 
@@ -259,6 +287,7 @@ fn insert_flow(h: &AppHandle, text: &str, target: Option<String>) {
 
 /// Error recuperable: aviso en la UI y, si no hay ventana a la vista, notificación.
 fn fail(h: &AppHandle, msg: String, background: bool) {
+    diag_log::log(&format!("aviso: {msg}"));
     if background {
         output::notify(&msg);
     }
@@ -280,6 +309,7 @@ fn toggle_recording(app: State<App>, h: AppHandle) -> Result<RecState, String> {
 }
 
 fn do_cancel(h: &AppHandle, app: &App) -> RecState {
+    diag_log::log("cancelado");
     app.generation.fetch_add(1, Ordering::SeqCst);
     *app.target.lock().unwrap() = None;
     app.cancel.lock().unwrap().store(true, Ordering::SeqCst);
@@ -426,6 +456,8 @@ fn show_main(h: &AppHandle) {
 }
 
 pub fn run() {
+    diag_log::init();
+    diag_log::log_startup();
     // whisper.cpp imprime tokens/segmentos en stderr: se redirige al crate `log`,
     // que no tiene logger instalado, así que nada de la transcripción se registra.
     whisper_rs::install_logging_hooks();

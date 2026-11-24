@@ -67,6 +67,7 @@ pub struct Diagnostics {
     pub notifications: bool,
     pub auto_insert: bool,
     pub insert_tool: Option<&'static str>,
+    pub log_path: Option<String>,
 }
 
 pub fn diagnostics() -> Diagnostics {
@@ -76,6 +77,7 @@ pub fn diagnostics() -> Diagnostics {
         notifications: notifications_available(),
         auto_insert: crate::insert::available(),
         insert_tool: crate::insert::tool(),
+        log_path: crate::diag_log::path().map(|p| p.display().to_string()),
     }
 }
 

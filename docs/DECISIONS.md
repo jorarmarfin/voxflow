@@ -132,3 +132,11 @@ MIT, a petición del propietario (repositorio público). Revisión de dependenci
 
 ## Verificación
 Ver estado de CI y pruebas pendientes en `docs/TEST_PLAN.md`. Todo lo que dependa de hardware/SO real de Windows (micrófono, atajo, SendInput, notificaciones, instalador) está **sin probar**.
+
+# 0.3.1 — Diagnóstico de Windows e instalador Inno (2026-11-23)
+
+**Incidente:** en Windows (primera prueba real) la ventana se cerró al pulsar *Detener*, sin ningún registro.
+- **Hipótesis principal (no confirmada):** `whisper-rs-sys` no fija `GGML_NATIVE`, así que ggml se compila para la CPU que lo compila (runner de GitHub, posible AVX-512) y falla con "instrucción ilegal" en otras CPU. Mitigación: `GGML_NATIVE=OFF` + AVX2/FMA/F16C (workflow y `build.sh`); mínimo: CPU con AVX2. Hipótesis secundaria: desbordamiento de pila en el hilo de inferencia (2 MB por defecto en Windows) → hilo con 64 MB. Otras posibles causas: pánico/abort de ggml (stderr oculto por `windows_subsystem`), fallo en WASAPI al detener.
+- **Log:** `diag_log.rs`, archivo `voxflow.log` (rotación 1 MB). Windows: `<instalación>\logs` (el instalador da `users-modify`) con respaldo en `%LOCALAPPDATA%`. Redirige stderr (Win32 + CRT) al archivo y registra excepciones nativas con `SetUnhandledExceptionFilter`; el hook de pánico registra ubicación y solo mensajes estáticos. **Privacidad:** sin audio ni texto; solo conteos (muestras, nº de caracteres), estados y errores propios. Una línea de arranque muestra los flags de CPU (`avx2`, `avx512f`…) para confirmar o descartar la hipótesis.
+- **Instalador:** Inno Setup (`installer/voxflow.iss`) sustituye a NSIS. `PrivilegesRequired=admin`, `{autopf}\VoxFlow`, WebView2 por descarga del bootstrapper oficial (mejor esfuerzo), español/inglés. La app se compila con `tauri build --no-bundle` (un solo `voxflow.exe`). Riesgo: requiere el runtime de VC++ (suele estar presente); si falta, añadir `vc_redist` al instalador.
+- **Sin verificar:** que el cierre desaparezca. Esta versión está pensada para **producir evidencia** (el log) si persiste.

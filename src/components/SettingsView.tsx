@@ -171,6 +171,7 @@ export default function SettingsView({ settings, onSaved, onNotice, onModelChang
                 ? `disponible (${diag.insert_tool}); solo con el atajo, pega en la ventana que tenías activa al empezar`
                 : "no disponible (Linux: requiere X11, xdotool y xprop); el texto se copia y se pega con Ctrl+V"}
             </li>
+            <li>Registro de diagnóstico: {diag.log_path ?? "no disponible"} (nunca contiene audio ni texto dictado)</li>
           </ul>
         )}
       </section>
