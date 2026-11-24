@@ -1,11 +1,10 @@
 # Compila VoxFlow solo para Windows (instalador NSIS). Linux se compila en local con ./build.sh.
+# Se dispara ÚNICAMENTE con un commit en la rama `release`.
 name: Windows
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
-  workflow_dispatch:
+    branches: [release]
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -71,14 +70,15 @@ jobs:
             src-tauri/target/release/bundle/nsis/SHA256SUMS-windows
           if-no-files-found: error
 
-  release:
-    # Solo al empujar un tag v*: adjunta el instalador al release de ese tag.
-    if: startsWith(github.ref, 'refs/tags/v')
+  attach:
+    # Adjunta el instalador al GitHub Release `v<versión de package.json>` si ya existe.
+    # Si no existe, el instalador queda solo como artefacto del run.
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: voxflow-windows
@@ -87,6 +87,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --prerelease --title "VoxFlow $GITHUB_REF_NAME" --notes "Instalador de Windows (sin firmar)."
-          gh release upload "$GITHUB_REF_NAME" dist-win/*-setup.exe dist-win/SHA256SUMS-windows --repo "$GITHUB_REPOSITORY" --clobber
+          TAG="v$(node -p "require('./package.json').version")"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist-win/*-setup.exe dist-win/SHA256SUMS-windows --repo "$GITHUB_REPOSITORY" --clobber
+            echo "Adjuntado a $TAG"
+          else
+            echo "No existe el release $TAG; el instalador queda como artefacto del run."
+          fi

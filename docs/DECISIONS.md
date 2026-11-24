@@ -128,7 +128,7 @@ MIT, a petición del propietario (repositorio público). Revisión de dependenci
 - **Atajo global:** `tauri-plugin-global-shortcut`, ajuste `hotkey` (def. `Ctrl+Alt+V`), validado y registrado al guardar. En Linux se mantiene el atajo del escritorio + `--toggle` (en Wayland no hay escucha global).
 - **Inserción:** `SendInput` Ctrl+V, misma guarda de ventana (HWND en primer plano) y espera a que se suelten Shift/Alt/Win. Limitación UIPI con ventanas elevadas.
 - **Empaquetado:** NSIS por usuario (`--bundles nsis`), sin firma de código → SmartScreen avisa. MSI/WiX descartado por ahora.
-- **CI:** `.github/workflows/windows.yml` compila **solo Windows** (frontend lint/test, `cargo test --lib`, NSIS, checksums, artefacto; en tags `v*` adjunta al release). Linux sigue siendo local (`build.sh`); esto sustituye la decisión previa de "sin CI" únicamente para Windows, a petición del propietario.
+- **CI:** `.github/workflows/windows.yml` compila **solo Windows** (frontend lint/test, `cargo test --lib`, NSIS, checksums, artefacto; solo con commits en la rama `release`; adjunta el instalador al release `v<versión>` si existe). Linux sigue siendo local (`build.sh`); esto sustituye la decisión previa de "sin CI" únicamente para Windows, a petición del propietario.
 
 ## Verificación
 Ver estado de CI y pruebas pendientes en `docs/TEST_PLAN.md`. Todo lo que dependa de hardware/SO real de Windows (micrófono, atajo, SendInput, notificaciones, instalador) está **sin probar**.

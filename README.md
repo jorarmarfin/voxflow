@@ -29,7 +29,7 @@ sudo apt install xdotool x11-utils wl-clipboard xclip libnotify-bin pulseaudio-u
 scripts/fetch-model.sh base        # descarga explícita del modelo (~142 MB) con SHA-256
 scripts/record-test.sh 8           # graba 8 s del micrófono a tests/fixtures/mic-es.wav
 ```
-Instalar el `.deb`: `sudo apt install ./src-tauri/target/release/bundle/deb/VoxFlow_0.2.0_amd64.deb`. El `.AppImage` se ejecuta con `chmod +x` y doble clic. Convertir audio: `ffmpeg -i in.mp3 -ar 16000 -ac 1 -c:a pcm_s16le out.wav`.
+Instalar el `.deb`: `sudo apt install ./src-tauri/target/release/bundle/deb/VoxFlow_0.3.0_amd64.deb`. El `.AppImage` se ejecuta con `chmod +x` y doble clic. Convertir audio: `ffmpeg -i in.mp3 -ar 16000 -ac 1 -c:a pcm_s16le out.wav`.
 
 Preferencias: `~/.config/pe.voxflow.app/settings.json` (sin audio ni texto). Modelos instalados desde la app: `~/.local/share/pe.voxflow.app/models/`.
 
@@ -41,7 +41,7 @@ No hay CI/CD: todo se compila y ejecuta en local con `build.sh` y `run.sh`.
 
 ## Windows (10/11)
 
-Instalador `VoxFlow_x.y.z_x64-setup.exe` generado por GitHub Actions (pestaña *Actions* → último run *Windows* → artefacto `voxflow-windows`, o adjunto al release cuando se publica un tag). **No está firmado**: SmartScreen mostrará "Windows protegió su PC" → *Más información* → *Ejecutar de todos modos*. Verifica `SHA256SUMS-windows` con `Get-FileHash`.
+Instalador `VoxFlow_0.3.0_x64-setup.exe` generado por GitHub Actions (pestaña *Actions* → último run *Windows* → artefacto `voxflow-windows`, o adjunto al release de esa versión). **No está firmado**: SmartScreen mostrará "Windows protegió su PC" → *Más información* → *Ejecutar de todos modos*. Verifica `SHA256SUMS-windows` con `Get-FileHash`.
 - **Instalación por usuario** (sin administrador). WebView2 se instala solo si falta.
 - **Primer uso:** Preferencias → *Descargar modelo* (~142 MB) → elegir micrófono → Guardar. Si no graba: Configuración → Privacidad y seguridad → Micrófono → permitir apps de escritorio.
 - **Atajo global:** por defecto `Ctrl+Alt+V` (editable en Preferencias); primera pulsación graba, la segunda detiene y transcribe. También `voxflow.exe --toggle`.
@@ -56,7 +56,7 @@ Instalador `VoxFlow_x.y.z_x64-setup.exe` generado por GitHub Actions (pestaña *
 **GNOME** (script que solo añade/quita su propia entrada y conserva tus otros atajos):
 ```bash
 scripts/install-gnome-shortcut.sh                          # Super+Alt+V → voxflow --toggle (.deb instalado)
-scripts/install-gnome-shortcut.sh --binding '<Ctrl><Alt>d' --command /ruta/VoxFlow_0.2.0_amd64.AppImage
+scripts/install-gnome-shortcut.sh --binding '<Ctrl><Alt>d' --command /ruta/VoxFlow_0.3.0_amd64.AppImage
 scripts/install-gnome-shortcut.sh --remove
 ```
 Manual: Ajustes → Teclado → Atajos personalizados → comando `voxflow --toggle`. En KDE: Preferencias → Atajos → Comando personalizado con el mismo comando.
@@ -72,6 +72,12 @@ Evita usarlo con campos de contraseña o ventanas sensibles: VoxFlow no puede sa
 - Instalado con `.deb`: `sudo apt remove voxflow`. AppImage: borra el archivo.
 - Opcional: `rm -r ~/.config/pe.voxflow.app ~/.local/share/pe.voxflow.app` (preferencias y modelos).
 - Desarrollo: borra la carpeta del repo (`models/`, `target/`, `node_modules/`).
+
+## Publicar una versión (mantenedor)
+1. Sube la versión en `package.json`, `src-tauri/Cargo.toml` y `src-tauri/tauri.conf.json`; actualiza `CHANGELOG.md` y `docs/RELEASE_NOTES_x.y.z.md`.
+2. `./build.sh` (Linux) → `.deb`, `.AppImage` y `SHA256SUMS` en `src-tauri/target/release/bundle/`.
+3. Crea el tag y el release de GitHub (`gh release create vX.Y.Z --prerelease ...`) con esos archivos.
+4. Empuja a la rama **`release`** (`git push origin main:release`): **solo ese push dispara GitHub Actions**, que compila el instalador de Windows y lo adjunta al release `vX.Y.Z`.
 
 ## Licencia
 [MIT](LICENSE) © 2026 Luis Mayta. Licencias de dependencias y modelos: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
