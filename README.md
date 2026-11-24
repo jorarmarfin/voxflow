@@ -5,7 +5,7 @@
 Dictado local en español para Ubuntu 24.04 (X11/Wayland). Audio y texto se procesan en tu equipo (whisper.cpp); sin telemetría.
 Especificación: [docs/SPEC.md](docs/SPEC.md) · Decisiones: [docs/DECISIONS.md](docs/DECISIONS.md) · Pruebas: [docs/TEST_PLAN.md](docs/TEST_PLAN.md)
 
-> **Estado: Fase 5 (inserción en el cursor, X11).** Dictado por ventana o atajo (`voxflow --toggle`), copia al portapapeles y, en **X11 con `xdotool`**, inserción directa en la ventana que tenías activa. **Wayland: sin inserción** (solo portapapeles) y sin validar en sesión real.
+> **Estado: Fase 6 (Windows, sin probar en un equipo real).** Linux (Ubuntu 24.04, X11 probado) y Windows 10/11 (compilado por GitHub Actions; el micrófono, el atajo global y la inserción de Windows **aún no se han probado en un PC real**). Wayland: solo portapapeles.
 
 ## Requisitos (Ubuntu 24.04 / Linux)
 
@@ -39,7 +39,17 @@ Preferencias: `~/.config/pe.voxflow.app/settings.json` (sin audio ni texto). Mod
 
 No hay CI/CD: todo se compila y ejecuta en local con `build.sh` y `run.sh`.
 
-## Atajo de teclado (`voxflow --toggle`)
+## Windows (10/11)
+
+Instalador `VoxFlow_x.y.z_x64-setup.exe` generado por GitHub Actions (pestaña *Actions* → último run *Windows* → artefacto `voxflow-windows`, o adjunto al release cuando se publica un tag). **No está firmado**: SmartScreen mostrará "Windows protegió su PC" → *Más información* → *Ejecutar de todos modos*. Verifica `SHA256SUMS-windows` con `Get-FileHash`.
+- **Instalación por usuario** (sin administrador). WebView2 se instala solo si falta.
+- **Primer uso:** Preferencias → *Descargar modelo* (~142 MB) → elegir micrófono → Guardar. Si no graba: Configuración → Privacidad y seguridad → Micrófono → permitir apps de escritorio.
+- **Atajo global:** por defecto `Ctrl+Alt+V` (editable en Preferencias); primera pulsación graba, la segunda detiene y transcribe. También `voxflow.exe --toggle`.
+- **Insertar en la ventana activa:** modo de salida *Insertar* → pega con Ctrl+V (`SendInput`) solo si la ventana en primer plano sigue siendo la misma; si no, copia y avisa. Windows no permite enviar teclas a ventanas ejecutadas como administrador (en ese caso solo se copia).
+- Datos: `%APPDATA%\pe.voxflow.app` (ajustes) y `%LOCALAPPDATA%\pe.voxflow.app\models`. Desinstalar: *Configuración → Aplicaciones*.
+- Compilar en local (Windows): Rust (MSVC), Node 22, pnpm, CMake, LLVM (`LIBCLANG_PATH`) y *Build Tools* de VS; luego `pnpm install` y `pnpm tauri build --bundles nsis`.
+
+## Atajo de teclado en Linux (`voxflow --toggle`)
 
 `voxflow --toggle` alterna la grabación en la instancia en marcha (o abre la app y empieza a grabar si no hay ninguna): 1.ª vez graba, 2.ª detiene y transcribe. No roba el foco; avisa con notificaciones (que nunca incluyen el texto). Según el **modo de salida**: *Copiar directo* → copia y notifica "Pega con Ctrl+V"; *Vista previa* → abre la ventana con el texto.
 

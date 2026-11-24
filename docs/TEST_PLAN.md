@@ -36,3 +36,12 @@ Pendientes ⏳:
 ## Fase 5 (X11)
 Hechas: Tk Entry, cambio de ventana (negativa), gnome-terminal. Con `PATH`/`LD_LIBRARY_PATH` apuntando a un xdotool local si no está instalado.
 Pendientes ⏳: VS Code (editor y terminal integrada), Chrome/Firefox (campo de texto y contenteditable), apps Electron, Wayland (debe quedar en fallback a portapapeles).
+
+## Fase 6 (Windows)
+Automáticas (CI Windows): lint + Vitest, `cargo test --lib` (resampler, ajustes, guarda de ventana), build NSIS.
+Manuales ⏳ en un PC con Windows 10/11:
+1. Instalar el `.exe` (SmartScreen), abrir, descargar modelo, elegir micrófono.
+2. Dictar con el botón y con `Ctrl+Alt+V`; comprobar que el micrófono se libera (icono de micrófono desaparece).
+3. Modo *Insertar* en Bloc de notas, VS Code, Chrome, Windows Terminal; cambio de ventana durante la grabación (no debe insertar); ventana como administrador (solo copia).
+4. Notificaciones (sin texto dictado), cambio de atajo, atajo en uso por otra app.
+5. Español peruano y tecnicismos; rendimiento CPU (RTF).

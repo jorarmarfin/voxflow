@@ -119,3 +119,16 @@ VS Code (terminal integrada y editor), Chrome/Firefox, apps Electron/Java; campo
 
 # Licencia (2026-11-23)
 MIT, a petición del propietario (repositorio público). Revisión de dependencias con `cargo metadata`/`pnpm licenses`: sin GPL/AGPL; MPL-2.0 en 5 crates (sin modificar) y `r-efi` bajo MIT. Resumen en `THIRD_PARTY_LICENSES.md`. Los releases v0.1.0/v0.2.0 ya publicados no incluían el archivo LICENSE; se aplica al repositorio desde este commit y a los siguientes releases.
+
+# Fase 6 — Windows (2026-11-23)
+
+- **Arquitectura por plataforma** con `cfg`: `audio/{pipewire,wasapi,resample}`, `output/{unix,windows}`, `insert/{x11,windows}`. API común idéntica; la UI, la máquina de estados, los ajustes, el gestor de modelos y el motor (whisper.cpp) se reutilizan.
+- **Captura:** `cpal` 0.18 (WASAPI) con el stream en un hilo propio, formato nativo (f32/i16/i32/u16) → mono → remuestreo lineal propio a 16 kHz (`audio/resample.rs`, con tests que corren en CI de Windows y Linux). El audio sigue solo en memoria (tope de 5 min).
+- **Portapapeles:** `arboard` (con reintentos). **Notificaciones:** `tauri-plugin-notification` (Rust-side, sin texto dictado).
+- **Atajo global:** `tauri-plugin-global-shortcut`, ajuste `hotkey` (def. `Ctrl+Alt+V`), validado y registrado al guardar. En Linux se mantiene el atajo del escritorio + `--toggle` (en Wayland no hay escucha global).
+- **Inserción:** `SendInput` Ctrl+V, misma guarda de ventana (HWND en primer plano) y espera a que se suelten Shift/Alt/Win. Limitación UIPI con ventanas elevadas.
+- **Empaquetado:** NSIS por usuario (`--bundles nsis`), sin firma de código → SmartScreen avisa. MSI/WiX descartado por ahora.
+- **CI:** `.github/workflows/windows.yml` compila **solo Windows** (frontend lint/test, `cargo test --lib`, NSIS, checksums, artefacto; en tags `v*` adjunta al release). Linux sigue siendo local (`build.sh`); esto sustituye la decisión previa de "sin CI" únicamente para Windows, a petición del propietario.
+
+## Verificación
+Ver estado de CI y pruebas pendientes en `docs/TEST_PLAN.md`. Todo lo que dependa de hardware/SO real de Windows (micrófono, atajo, SendInput, notificaciones, instalador) está **sin probar**.
